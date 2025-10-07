@@ -97,7 +97,7 @@ class ProcessRequest(BaseModel):
     resume: bool = False
     force: bool = False
     fsync_each: bool = False
-    chunk_size: int = 2000
+    chunk_size: int = 8000
     preview_chars: int = 500
 
 class Model(BaseModel):

@@ -64,6 +64,34 @@ npm install
 
 ### 3. Start the Application
 
+#### 🚀 **Easy Launch (Recommended)**
+
+Use one of the provided launchers to start both servers with a single command:
+
+**Windows (Batch):**
+```cmd
+launch.bat
+```
+
+**Windows (PowerShell):**
+```powershell
+.\launch.ps1
+```
+
+**Cross-platform (Python):**
+```bash
+python launch.py
+```
+
+**Unix/Linux/macOS (Shell):**
+```bash
+./launch.sh
+```
+
+#### 📋 **Manual Launch**
+
+If you prefer to start servers separately:
+
 **Terminal 1 - Backend:**
 ```bash
 cd backend
@@ -77,6 +105,18 @@ npm run dev
 ```
 
 **Access:** Open `http://localhost:5174` in your browser
+
+### 🎮 **Launcher Features**
+
+The provided launchers automatically:
+- ✅ **Check system requirements** (Python 3.10+, Node.js 16+)
+- ✅ **Install missing dependencies** (pip and npm packages)
+- ✅ **Start both servers** simultaneously
+- ✅ **Open your browser** to the application
+- ✅ **Handle cleanup** when stopping (Unix/Linux/Python launcher)
+- ✅ **Provide clear status updates** and error messages
+
+Choose the launcher that works best for your system!
 
 ---
 

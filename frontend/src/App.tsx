@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { ThemeProvider, useTheme } from './components/ThemeContext';
 import { ThemeToggle } from './components/ThemeToggle';
 import { FileSelector } from './components/FileSelector';
@@ -8,6 +8,8 @@ import { ProgressBar } from './components/ProgressBar';
 import { LogArea } from './components/LogArea';
 import { PreviewWindow } from './components/PreviewWindow';
 import { Button } from './components/Button';
+import { FileAnalysis } from './components/FileAnalysis';
+import { ChunkSizeControl } from './components/ChunkSizeControl';
 import { EditIcon, PlayIcon, SaveIcon } from 'lucide-react';
 import { apiService, WebSocketMessage } from './services/api';
 // Use the high-quality grammar prompt that matches the original
@@ -55,6 +57,13 @@ const AppContent = () => {
   const [originalText, setOriginalText] = useState<string>('');
   const [processedText, setProcessedText] = useState<string>('');
   const [currentJobId, setCurrentJobId] = useState<string>('');
+  const [chunkSize, setChunkSize] = useState<number>(8000);
+
+  // Calculate estimated chunks based on text length and chunk size
+  const calculateEstimatedChunks = (text: string, size: number) => {
+    if (!text) return 0;
+    return Math.ceil(text.length / size);
+  };
 
   // Initialize WebSocket connection
   useEffect(() => {
@@ -187,7 +196,7 @@ const AppContent = () => {
         prompt_template: prompt,
         stream: false,
         show_progress: true,
-        chunk_size: 8000,  // Match original md_proof.py default
+        chunk_size: chunkSize,
         preview_chars: 500
       });
 
@@ -229,17 +238,22 @@ const AppContent = () => {
     URL.revokeObjectURL(url);
     addLog('Processed text saved to file', 'success');
   };
-  return <div className={`min-h-screen w-full ${isDarkMode ? 'dark bg-dark-background text-gray-200' : 'bg-gray-50 text-gray-900'}`}>
+  return <div className={`min-h-screen w-full transition-colors duration-300 ${isDarkMode ? 'dark bg-catppuccin-base text-catppuccin-text' : 'bg-light-base text-light-text'}`}>
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         {/* Header */}
         <header className="flex justify-between items-center mb-8">
           <div className="flex items-center">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              TTS-Proof
-            </h1>
-            <span className="ml-3 px-2.5 py-1 bg-primary-100 dark:bg-primary-900/30 text-primary-800 dark:text-primary-300 text-xs font-medium rounded-full">
-              v1.0.0
-            </span>
+            <div className="w-10 h-10 bg-gradient-to-br from-catppuccin-mauve to-catppuccin-blue rounded-lg flex items-center justify-center shadow-lg mr-4">
+              <span className="text-white font-bold text-lg">TP</span>
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-light-text dark:text-catppuccin-text">
+                TTS-Proof
+              </h1>
+              <span className="px-2.5 py-1 bg-catppuccin-lavender/20 dark:bg-catppuccin-lavender/10 text-catppuccin-lavender dark:text-catppuccin-lavender text-xs font-medium rounded-full ml-2">
+                v2.1.0
+              </span>
+            </div>
           </div>
           <ThemeToggle />
         </header>
@@ -247,38 +261,58 @@ const AppContent = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left column - Controls */}
           <div className="lg:col-span-1 space-y-6">
-            <section className="bg-white dark:bg-dark-card rounded-xl p-6 shadow-soft">
-              <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-gray-200">
+            <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-6 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0">
+              <h2 className="text-xl font-semibold mb-4 text-light-text dark:text-catppuccin-text">
                 File Selection
               </h2>
               <FileSelector onFileSelect={handleFileSelect} />
             </section>
 
-            <section className="bg-white dark:bg-dark-card rounded-xl p-6 shadow-soft">
-              <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-gray-200">
+            <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-6 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0">
+              <h2 className="text-xl font-semibold mb-4 text-light-text dark:text-catppuccin-text">
                 Model Selection
               </h2>
               <ModelPicker onModelSelect={setSelectedModelId} />
             </section>
 
-            <section className="bg-white dark:bg-dark-card rounded-xl p-6 shadow-soft">
+            {/* File Analysis - Show when file is selected */}
+            {file && originalText && (
+              <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-6 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0">
+                <FileAnalysis 
+                  totalCharacters={originalText.length}
+                  estimatedChunks={calculateEstimatedChunks(originalText, chunkSize)}
+                  fileName={file.name}
+                />
+              </section>
+            )}
+
+            {/* Chunk Size Control */}
+            <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-6 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0">
+              <ChunkSizeControl 
+                chunkSize={chunkSize}
+                onChunkSizeChange={setChunkSize}
+                disabled={isProcessing}
+              />
+            </section>
+
+            <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-6 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
+                <h2 className="text-xl font-semibold text-light-text dark:text-catppuccin-text">
                   Prompt Template
                 </h2>
                 <Button variant="outline" size="sm" icon={<EditIcon className="w-4 h-4" />} onClick={() => setIsPromptEditorOpen(true)}>
                   Edit
                 </Button>
               </div>
-              <div className="bg-gray-50 dark:bg-dark-background p-3 rounded-lg border border-gray-200 dark:border-dark-border">
-                <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+              <div className="bg-light-crust dark:bg-catppuccin-crust p-3 rounded-lg border border-light-surface1 dark:border-catppuccin-surface1">
+                <pre className="text-sm text-light-subtext1 dark:text-catppuccin-subtext1 whitespace-pre-wrap">
                   {prompt.length > 150 ? `${prompt.substring(0, 150)}...` : prompt}
                 </pre>
               </div>
             </section>
 
-            <section className="bg-white dark:bg-dark-card rounded-xl p-6 shadow-soft">
-              <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-gray-200">
+            <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-6 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0">
+              <h2 className="text-xl font-semibold mb-4 text-light-text dark:text-catppuccin-text">
                 Processing
               </h2>
               <ProgressBar progress={progress} status={status} isProcessing={isProcessing} />
@@ -296,7 +330,7 @@ const AppContent = () => {
           {/* Right column - Preview and Logs */}
           <div className="lg:col-span-2 grid grid-rows-2 gap-6 h-[calc(100vh-10rem)]">
             <section className="row-span-1">
-              <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-gray-200">
+              <h2 className="text-xl font-semibold mb-4 text-light-text dark:text-catppuccin-text">
                 Text Preview
               </h2>
               <div className="h-[calc(100%-2.5rem)]">
@@ -305,7 +339,7 @@ const AppContent = () => {
             </section>
 
             <section className="row-span-1">
-              <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-gray-200">
+              <h2 className="text-xl font-semibold mb-4 text-light-text dark:text-catppuccin-text">
                 Process Log
               </h2>
               <div className="h-[calc(100%-2.5rem)]">

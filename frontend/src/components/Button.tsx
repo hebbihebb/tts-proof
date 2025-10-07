@@ -1,13 +1,13 @@
-import React from 'react';
+import { ButtonHTMLAttributes, ReactNode } from 'react';
 import { Loader2Icon } from 'lucide-react';
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  children: React.ReactNode;
+interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  children: ReactNode;
   variant?: 'primary' | 'secondary' | 'outline';
   size?: 'sm' | 'md' | 'lg';
   isLoading?: boolean;
-  icon?: React.ReactNode;
+  icon?: ReactNode;
 }
-export const Button: React.FC<ButtonProps> = ({
+export const Button = ({
   children,
   variant = 'primary',
   size = 'md',
@@ -16,12 +16,12 @@ export const Button: React.FC<ButtonProps> = ({
   className = '',
   disabled,
   ...props
-}) => {
+}: ButtonProps) => {
   const baseStyles = 'rounded-lg font-medium transition-colors flex items-center justify-center';
   const variantStyles = {
-    primary: 'bg-primary-500 hover:bg-primary-600 text-white',
-    secondary: 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200',
-    outline: 'border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-800 dark:text-gray-200'
+    primary: 'bg-catppuccin-mauve hover:bg-catppuccin-mauve/90 text-white shadow-lg',
+    secondary: 'bg-light-surface0 hover:bg-light-surface1 dark:bg-catppuccin-surface0 dark:hover:bg-catppuccin-surface1 text-light-text dark:text-catppuccin-text',
+    outline: 'border border-light-surface1 dark:border-catppuccin-surface1 hover:bg-light-surface0 dark:hover:bg-catppuccin-surface0 text-light-text dark:text-catppuccin-text'
   };
   const sizeStyles = {
     sm: 'text-sm px-3 py-1.5',
