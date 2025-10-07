@@ -209,16 +209,6 @@ uvicorn app:app --host 0.0.0.0 --port 8000
 
 ---
 
-## 🎨 Screenshots
-
-### Main Interface
-![Modern web interface with file upload and real-time progress](docs/screenshot-main.png)
-
-### Processing View
-![Real-time processing with WebSocket updates](docs/screenshot-processing.png)
-
----
-
 ## 📄 License
 
 Personal utility tool - adapt and use as you wish. No warranty provided.
