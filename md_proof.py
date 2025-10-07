@@ -12,14 +12,24 @@ DEFAULT_MODEL = "qwen/qwen3-4b-2507"
 SENTINEL_START = "<TEXT_TO_CORRECT>"
 SENTINEL_END = "</TEXT_TO_CORRECT>"
 
-INSTRUCTION = (
-    "You are a precise copyeditor. Correct grammar and spelling while preserving meaning, tone, and formatting.\n"
-    "Rules:\n"
-    "1) Keep Markdown structure intact (headings, lists, links, emphasis, images, footnotes).\n"
-    "2) Do NOT add, remove, or reorder sentences unless fixing an error.\n"
-    "3) Do NOT add commentary or explanations.\n"
-    "4) Return ONLY the corrected text between the sentinels, with no extra text.\n"
-)
+# Load grammar prompt from external file
+GRAMMAR_PROMPT_PATH = Path(__file__).parent / "grammar_promt.txt"
+if GRAMMAR_PROMPT_PATH.exists():
+    with open(GRAMMAR_PROMPT_PATH, encoding="utf-8") as f:
+        INSTRUCTION = f.read()
+else:
+    INSTRUCTION = (
+        "You are a Markdown-aware text proofing assistant.\n"
+        "Tasks:\n"
+        "- Correct grammar, spelling, and punctuation.\n"
+        "- Normalize text that may confuse TTS engines (e.g. spaced or comma-separated letters, excessive dashes, decorative Unicode, or random capitalization).\n"
+        "- Preserve legitimate emphasis, tone, and Markdown structure.\n"
+        "Rules:\n"
+        "1) Never alter code blocks, URLs, or Markdown syntax.\n"
+        "2) Do not reorder or rewrite content beyond correction.\n"
+        "3) Do not add comments or explanations.\n"
+        "Return ONLY the corrected text between the sentinels.\n"
+    )
 
 FENCE_RE = re.compile(r"(?ms)^(```.*?\n.*?\n```)$")
 URL_RE = re.compile(r"\bhttps?://\S+")

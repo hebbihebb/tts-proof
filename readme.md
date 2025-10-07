@@ -3,7 +3,7 @@
 ## Purpose
 
 Batch-correct grammar and spelling in Markdown files using a **local LLM** served by **LM Studio** (OpenAI-compatible API).  
-Preserves Markdown structure (headings, lists, links, code blocks), checkpoints progress, and now includes a simple GUI.
+Preserves Markdown structure (headings, lists, links, code blocks), checkpoints progress, and now includes a simple, resizable GUI with customizable prompts.
 
 ---
 
@@ -15,6 +15,12 @@ Preserves Markdown structure (headings, lists, links, code blocks), checkpoints 
 - Streaming previews (optional)
 - Crash-safe: writes to `.partial` and `.ckpt.json`, supports `--resume`
 - **GUI included** (`md_proof_gui.py`)
+  - Resizable, modern interface
+  - Model selection dropdowns auto-populated from LM Studio
+  - Edit the grammar correction prompt live via a popup (saved in `grammar_promt.txt`)
+  - TTS Cleaner model and prompt UI (for future use)
+  - Output file is auto-named and created
+  - Log panel filters redundant progress messages for clarity
 - Simple round-trip with EPUB via Pandoc or Calibre (optional)
 
 ---
@@ -42,7 +48,7 @@ Preserves Markdown structure (headings, lists, links, code blocks), checkpoints 
    ```
    pip install requests regex
    ```
-3. Save `md_proof.py` and (optionally) `md_proof_gui.py` to a folder, e.g. `C:\Tools\md_proof\`.
+3. Save `md_proof.py`, `md_proof_gui.py`, and `grammar_promt.txt` to a folder, e.g. `C:\Tools\md_proof\`.
 4. (Optional) Create a launcher batch file for convenience.
 
 ---
@@ -80,7 +86,24 @@ Run:
 python md_proof_gui.py
 ```
 
-Use the graphical interface to select files and options.
+#### GUI Features
+
+- **Open Markdown File**: Select your input file.
+- **Grammar Model**: Choose from available models (auto-populated from LM Studio).
+- **TTS-Cleaner Model**: Placeholder for future TTS cleaning (selectable, not yet functional).
+- **Grammar Model Prompt**: View and edit the prompt sent to the LLM (changes are saved to `grammar_promt.txt` and used immediately).
+- **TTS Cleaner Prompt**: Placeholder for future TTS prompt editing.
+- **Resizable interface**: All panels and popups are resizable for convenience.
+- **Output file**: Automatically named and created in the same folder as the input.
+- **Log panel**: Shows only meaningful output and errors (filters redundant progress messages).
+
+---
+
+## Prompt Customization
+
+- The grammar correction prompt is stored in `grammar_promt.txt`.
+- You can edit this prompt at any time via the GUI ("Grammar Model Prompt" button).
+- Changes are saved and used immediately for subsequent corrections.
 
 ---
 
@@ -104,14 +127,16 @@ Use the graphical interface to select files and options.
 - Keep code blocks fenced to prevent editing.
 - For documents with tables/footnotes/custom syntax, test with `--stream` to verify formatting.
 - For extra safety on long jobs, add `--fsync`.
+- Use the GUI for easy prompt customization and model selection.
 
 ---
 
 ## Troubleshooting
 
-- **Model name mismatch / 404:** Pass the exact LM Studio model name via `--model`.
+- **Model name mismatch / 404:** Pass the exact LM Studio model name via the GUI or `--model`.
 - **Auth errors:** LM Studio server should allow no API key or you must configure one.
 - **No output / hangs:** Use `--no-progress` to rule out terminal issues; check LM Studio logs.
+- **Resource errors:** If you see "Insufficient system resources," restart your computer and avoid running too many jobs at once.
 
 ---
 
