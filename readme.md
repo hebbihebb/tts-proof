@@ -1,153 +1,219 @@
-# README — tts-proof
+# TTS-Proof - Modern Grammar Correction Tool
 
-## Purpose
+## Overview
 
-Batch-correct grammar and spelling in Markdown files using a **local LLM** served by **LM Studio** (OpenAI-compatible API).  
-Preserves Markdown structure (headings, lists, links, code blocks), checkpoints progress, and now includes a simple, resizable GUI with customizable prompts.
-
----
-
-## Features
-
-- Local-only processing via LM Studio (`http://127.0.0.1:1234/v1`)
-- Chunked processing with progress bar + spinner
-- URL masking and code-block preservation
-- Streaming previews (optional)
-- Crash-safe: writes to `.partial` and `.ckpt.json`, supports `--resume`
-- **GUI included** (`md_proof_gui.py`)
-  - Resizable, modern interface with larger fonts
-  - Model selection dropdowns auto-populated from LM Studio
-  - Edit the grammar correction prompt live via a popup (saved in `grammar_promt.txt`)
-  - TTS Cleaner model and prompt UI (for future use)
-  - Output file is auto-named and created
-  - **Preview Output**: View and optionally delete the generated corrected file
-  - **Tooltips**: Hover over any control for a description
-  - Log panel filters redundant progress messages for clarity
-  - Animated progress bar for LLM requests
+A modern web-based application for batch grammar and spelling correction of Markdown files using **local LLM** servers (LM Studio). Features a beautiful React frontend with real-time progress tracking and a robust FastAPI backend that preserves all original processing capabilities.
 
 ---
 
-## Screenshot
+## ✨ Features
 
-![Screenshot of tts-proof GUI](screenshot.png)
+### 🎨 Modern Web Interface
+- **React + TypeScript frontend** with Tailwind CSS styling
+- **Real-time progress updates** via WebSocket connections
+- **Dark/Light theme toggle** for comfortable use
+- **Responsive design** that works on any screen size
+- **Drag & drop file uploads** with instant preview
+
+### 🔧 Powerful Processing Engine
+- **Local-only processing** via LM Studio (`http://127.0.0.1:1234/v1`)
+- **Intelligent chunking** (8000 chars) with progress tracking
+- **Crash-safe processing** with automatic checkpointing and resume
+- **Markdown structure preservation** (headings, lists, links, code blocks)
+- **URL masking** and code-block protection during processing
+
+### 🚀 Advanced Architecture
+- **FastAPI backend** with WebSocket support for real-time updates
+- **Concurrent processing** with proper job management
+- **Model auto-detection** from LM Studio server
+- **Customizable prompts** with live editing capabilities
+- **File management** with temporary file handling and cleanup
 
 ---
 
-## Requirements
+## 📋 Requirements
 
 - **Python 3.10+**
-- Python packages: `requests`, `regex`
-- **LM Studio** (Local Server enabled) with a grammar-capable model downloaded  
-  Example: `qwen/qwen3-4b-2507` (larger models improve quality)
-- (Optional) **Pandoc** or **Calibre** for EPUB ⇄ Markdown conversion
+- **Node.js 16+** and npm
+- **LM Studio** with local server enabled
+- Grammar-capable model (e.g., `qwen/qwen3-4b-2507`)
 
 ---
 
-## Performance
+## 🚀 Quick Start
 
-- **Tested:** Mobile RTX 2060 GPU (8GB VRAM), 40 minutes for a 300+ page document.
+### 1. Setup LM Studio
+1. Download and install [LM Studio](https://lmstudio.ai/)
+2. Download a grammar-capable model (e.g., `qwen/qwen3-4b-2507`)
+3. Enable **Local Server** with OpenAI-compatible API
+4. Default URL: `http://127.0.0.1:1234/v1`
 
----
+### 2. Install Dependencies
 
-## Install (Windows example)
-
-1. Install Python and pip.
-2. Install dependencies:
-   ```
-   pip install requests regex
-   ```
-3. Save `md_proof.py`, `md_proof_gui.py`, and `grammar_promt.txt` to a folder, e.g. `C:\Tools\md_proof\`.
-4. (Optional) Create a launcher batch file for convenience.
-
----
-
-## Start LM Studio
-
-1. Download your model (e.g., `qwen/qwen3-4b-2507`) in LM Studio.
-2. Enable **Local Server** (OpenAI-compatible). Default base URL:  
-   `http://127.0.0.1:1234/v1`
-3. Note the **exact** model name as shown by LM Studio.
-
----
-
-## Usage
-
-### Command Line
-
-Correct a Markdown file and write `*.corrected.md`:
-
-```
-python md_proof.py path\to\file.md
+**Backend:**
+```bash
+cd backend
+pip install fastapi uvicorn websockets python-multipart requests regex
 ```
 
-Show a live preview (first 400 chars per chunk):
-
-```
-python md_proof.py book.md --stream --preview-chars 400
-```
-
-### GUI
-
-Run:
-
-```
-python md_proof_gui.py
+**Frontend:**
+```bash
+cd frontend
+npm install
 ```
 
-#### GUI Features
+### 3. Start the Application
 
-- **Open Markdown File**: Select your input file.
-- **Grammar Model**: Choose from available models (auto-populated from LM Studio).
-- **TTS-Cleaner Model**: Placeholder for future TTS cleaning (selectable, not yet functional).
-- **Grammar Model Prompt**: View and edit the prompt sent to the LLM (changes are saved to `grammar_promt.txt` and used immediately).
-- **TTS Cleaner Prompt**: Placeholder for future TTS prompt editing.
-- **Resizable interface**: All panels and popups are resizable for convenience.
-- **Output file**: Automatically named and created in the same folder as the input.
-- **Log panel**: Shows only meaningful output and errors (filters redundant progress messages).
+**Terminal 1 - Backend:**
+```bash
+cd backend
+python app.py
+```
 
----
+**Terminal 2 - Frontend:**
+```bash
+cd frontend
+npm run dev
+```
 
-## Prompt Customization
-
-- The grammar correction prompt is stored in `grammar_promt.txt`.
-- You can edit this prompt at any time via the GUI ("Grammar Model Prompt" button).
-- Changes are saved and used immediately for subsequent corrections.
+**Access:** Open `http://localhost:5174` in your browser
 
 ---
 
-## EPUB Round-Trip
+## 🎯 How to Use
 
-- **Pandoc:**  
-  EPUB → Markdown:  
-  `pandoc input.epub -t gfm -o book.md`  
-  Markdown → EPUB:  
-  `pandoc book.corrected.md -o corrected.epub`
-
-- **Calibre:**  
-  Also tested for conversion back to EPUB.  
-  Headers in Markdown can be used to generate a table of contents (TOC).
+1. **Connect**: The app automatically connects to your LM Studio server
+2. **Upload**: Drag & drop or select your Markdown file
+3. **Configure**: Choose your model and edit prompts if needed
+4. **Process**: Click "Send for Processing" and watch real-time progress
+5. **Download**: Get your corrected text when processing completes
 
 ---
 
-## Tips
+## 🏗️ Architecture
 
-- Larger local models (7B–14B) yield better corrections.
-- Keep code blocks fenced to prevent editing.
-- For documents with tables/footnotes/custom syntax, test with `--stream` to verify formatting.
-- For extra safety on long jobs, add `--fsync`.
-- Use the GUI for easy prompt customization and model selection.
+```
+┌─────────────────┐    WebSocket    ┌──────────────────┐
+│  React Frontend │ ←──────────────→ │  FastAPI Backend │
+│  (Port 5174)    │                 │  (Port 8000)     │
+└─────────────────┘                 └──────────────────┘
+                                             │
+                                             ▼
+                                    ┌──────────────────┐
+                                    │   LM Studio      │
+                                    │  (Port 1234)     │
+                                    └──────────────────┘
+```
+
+### Backend Features
+- FastAPI server with WebSocket support
+- Original `md_proof.py` processing logic integration
+- Real-time progress updates and job management
+- File upload handling and temporary file management
+
+### Frontend Features
+- React 18 with TypeScript
+- Tailwind CSS for modern styling
+- Real-time WebSocket communication
+- Theme switching and responsive design
 
 ---
 
-## Troubleshooting
+## 🔧 Advanced Features
 
-- **Model name mismatch / 404:** Pass the exact LM Studio model name via the GUI or `--model`.
-- **Auth errors:** LM Studio server should allow no API key or you must configure one.
-- **No output / hangs:** Use `--no-progress` to rule out terminal issues; check LM Studio logs.
-- **Resource errors:** If you see "Insufficient system resources," restart your computer and avoid running too many jobs at once.
+### Command Line Interface (Legacy)
+The original CLI is still available for batch processing:
+```bash
+python md_proof.py document.md --stream --preview-chars 400
+```
+
+### Prompt Customization
+- Edit prompts directly in the web interface
+- Changes are saved to `grammar_promt.txt` automatically
+- Live preview of prompt changes
+
+### EPUB Integration
+Convert EPUB files for processing:
+```bash
+# EPUB to Markdown
+pandoc input.epub -t gfm -o book.md
+
+# Process with TTS-Proof web interface
+
+# Markdown back to EPUB
+pandoc book.corrected.md -o corrected.epub
+```
 
 ---
 
-## License & Contributions
+## 📊 Performance
 
-Personal utility script; adapt as you wish.
+- **Tested:** RTX 2060 (8GB VRAM) - 40 minutes for 300+ page document
+- **Chunking:** 8000 character chunks for optimal processing
+- **Checkpointing:** Automatic resume on interruption
+- **Memory:** Efficient streaming prevents memory issues
+
+---
+
+## 🛠️ Development
+
+### Project Structure
+```
+tts-proof/
+├── backend/
+│   ├── app.py              # FastAPI server
+│   └── requirements.txt    # Python dependencies
+├── frontend/
+│   ├── src/
+│   │   ├── components/     # React components
+│   │   ├── services/       # API services
+│   │   └── App.tsx         # Main application
+│   ├── package.json        # Node.js dependencies
+│   └── vite.config.ts      # Vite configuration
+├── md_proof.py             # Core processing logic
+└── grammar_promt.txt       # Grammar correction prompts
+```
+
+### Building for Production
+```bash
+# Frontend build
+cd frontend
+npm run build
+
+# Backend deployment
+cd backend
+pip install -r requirements.txt
+uvicorn app:app --host 0.0.0.0 --port 8000
+```
+
+---
+
+## 🐛 Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| **Models not loading** | Ensure LM Studio server is running on port 1234 |
+| **WebSocket connection failed** | Check if backend is running on port 8000 |
+| **Frontend won't start** | Run `npm install` in frontend directory |
+| **Processing stuck** | Check LM Studio logs, restart if needed |
+| **File upload failed** | Ensure file is .md, .txt, or .markdown format |
+
+---
+
+## 🎨 Screenshots
+
+### Main Interface
+![Modern web interface with file upload and real-time progress](docs/screenshot-main.png)
+
+### Processing View
+![Real-time processing with WebSocket updates](docs/screenshot-processing.png)
+
+---
+
+## 📄 License
+
+Personal utility tool - adapt and use as you wish. No warranty provided.
+
+## 🤝 Contributing
+
+Feel free to submit issues, feature requests, or pull requests to improve the tool.
