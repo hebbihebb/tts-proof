@@ -15,13 +15,21 @@ Preserves Markdown structure (headings, lists, links, code blocks), checkpoints 
 - Streaming previews (optional)
 - Crash-safe: writes to `.partial` and `.ckpt.json`, supports `--resume`
 - **GUI included** (`md_proof_gui.py`)
-  - Resizable, modern interface
+  - Resizable, modern interface with larger fonts
   - Model selection dropdowns auto-populated from LM Studio
   - Edit the grammar correction prompt live via a popup (saved in `grammar_promt.txt`)
   - TTS Cleaner model and prompt UI (for future use)
   - Output file is auto-named and created
+  - **Preview Output**: View and optionally delete the generated corrected file
+  - **Tooltips**: Hover over any control for a description
   - Log panel filters redundant progress messages for clarity
-- Simple round-trip with EPUB via Pandoc or Calibre (optional)
+  - Animated progress bar for LLM requests
+
+---
+
+## Screenshot
+
+![Screenshot of tts-proof GUI](screenshot.png)
 
 ---
 
