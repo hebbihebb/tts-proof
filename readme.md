@@ -90,6 +90,15 @@ npm run dev
 
 ---
 
+## 📸 Screenshots
+
+### Modern Web Interface
+![TTS-Proof Web Interface](screenshot-web-interface.png)
+
+*The new React-based interface showing file upload, real-time processing progress, and side-by-side text preview with dark theme.*
+
+---
+
 ## 🏗️ Architecture
 
 ```
