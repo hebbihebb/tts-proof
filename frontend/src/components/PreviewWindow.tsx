@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TrashIcon, CheckCircleIcon, XCircleIcon } from 'lucide-react';
+import { TrashIcon, CheckCircleIcon } from 'lucide-react';
 interface PreviewWindowProps {
   originalText: string;
   processedText: string;
@@ -11,35 +11,35 @@ export const PreviewWindow: React.FC<PreviewWindowProps> = ({
   onDelete
 }) => {
   const [activeTab, setActiveTab] = useState<'original' | 'processed'>('processed');
-  return <div className="w-full h-full bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden flex flex-col">
-      <div className="flex border-b border-gray-200 dark:border-dark-border">
-        <button onClick={() => setActiveTab('original')} className={`px-4 py-2 text-sm font-medium flex-1 ${activeTab === 'original' ? 'bg-white dark:bg-dark-card text-primary-600 dark:text-primary-400 border-b-2 border-primary-500' : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+  return <div className="w-full h-full bg-light-mantle dark:bg-catppuccin-mantle border border-light-surface0 dark:border-catppuccin-surface0 rounded-lg overflow-hidden flex flex-col">
+      <div className="flex border-b border-light-surface0 dark:border-catppuccin-surface0">
+        <button onClick={() => setActiveTab('original')} className={`px-4 py-2 text-sm font-medium flex-1 ${activeTab === 'original' ? 'bg-light-mantle dark:bg-catppuccin-mantle text-primary-600 dark:text-catppuccin-blue border-b-2 border-primary-500 dark:border-catppuccin-blue' : 'text-light-subtext1 dark:text-catppuccin-subtext1 hover:text-light-text dark:hover:text-catppuccin-text hover:bg-light-surface0 dark:hover:bg-catppuccin-surface0'}`}>
           Original Text
         </button>
-        <button onClick={() => setActiveTab('processed')} className={`px-4 py-2 text-sm font-medium flex-1 ${activeTab === 'processed' ? 'bg-white dark:bg-dark-card text-primary-600 dark:text-primary-400 border-b-2 border-primary-500' : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+        <button onClick={() => setActiveTab('processed')} className={`px-4 py-2 text-sm font-medium flex-1 ${activeTab === 'processed' ? 'bg-light-mantle dark:bg-catppuccin-mantle text-primary-600 dark:text-catppuccin-blue border-b-2 border-primary-500 dark:border-catppuccin-blue' : 'text-light-subtext1 dark:text-catppuccin-subtext1 hover:text-light-text dark:hover:text-catppuccin-text hover:bg-light-surface0 dark:hover:bg-catppuccin-surface0'}`}>
           Processed Text
         </button>
       </div>
       <div className="flex-1 overflow-auto p-4">
         {activeTab === 'original' ? <div className="prose dark:prose-invert max-w-none">
-            <pre className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200">
+            <pre className="whitespace-pre-wrap text-sm text-light-text dark:text-catppuccin-text">
               {originalText || 'No original text loaded.'}
             </pre>
           </div> : <div className="prose dark:prose-invert max-w-none">
-            <pre className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200">
+            <pre className="whitespace-pre-wrap text-sm text-light-text dark:text-catppuccin-text">
               {processedText || 'No processed text available. Process a file to see results.'}
             </pre>
           </div>}
       </div>
-      <div className="p-3 border-t border-gray-200 dark:border-dark-border flex justify-between items-center bg-gray-50 dark:bg-dark-background">
+      <div className="p-3 border-t border-light-surface0 dark:border-catppuccin-surface0 flex justify-between items-center bg-light-crust dark:bg-catppuccin-crust">
         <div className="flex items-center">
-          {processedText && <div className="flex items-center text-sm text-green-600 dark:text-green-400">
+          {processedText && <div className="flex items-center text-sm text-catppuccin-green dark:text-catppuccin-green">
               <CheckCircleIcon className="w-4 h-4 mr-1" />
               <span>Processing complete</span>
             </div>}
         </div>
         <div>
-          <button onClick={onDelete} className="px-3 py-1.5 text-sm bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg flex items-center transition-colors" title="Clear preview">
+          <button onClick={onDelete} className="px-3 py-1.5 text-sm bg-catppuccin-red/10 dark:bg-catppuccin-red/20 text-catppuccin-red dark:text-catppuccin-red hover:bg-catppuccin-red/20 dark:hover:bg-catppuccin-red/30 rounded-lg flex items-center transition-colors" title="Clear preview">
             <TrashIcon className="w-4 h-4 mr-1.5" />
             Clear
           </button>

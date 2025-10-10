@@ -136,19 +136,61 @@ processing_jobs: Dict[str, dict] = {}
 async def root():
     return {"message": "TTS-Proof API is running"}
 
-@app.get("/api/models", response_model=List[Model])
-async def get_models():
-    """Fetch available models from LM Studio."""
+@app.get("/api/test-endpoint")
+async def test_endpoint(api_base: str, model: str = "default"):
+    """Test if an endpoint supports chat completions."""
     try:
-        print("Models endpoint called")
-        
-        # First try to get from LM Studio
         import requests
-        print(f"Fetching models from {DEFAULT_API_BASE}/models")
-        response = requests.get(f"{DEFAULT_API_BASE}/models", timeout=5)
+        
+        # Test models endpoint first
+        models_url = f"{api_base}/models"
+        print(f"Testing models endpoint: {models_url}")
+        response = requests.get(models_url, timeout=5)
+        response.raise_for_status()
+        models_data = response.json()
+        
+        # Test chat completions endpoint
+        chat_url = f"{api_base}/chat/completions"
+        print(f"Testing chat completions endpoint: {chat_url}")
+        
+        test_payload = {
+            "model": model,
+            "messages": [{"role": "user", "content": "Hello"}],
+            "max_tokens": 5
+        }
+        
+        chat_response = requests.post(chat_url, json=test_payload, timeout=10)
+        chat_response.raise_for_status()
+        chat_data = chat_response.json()
+        
+        return {
+            "status": "success",
+            "models_available": len(models_data.get('data', [])),
+            "chat_working": True,
+            "test_response": chat_data.get('choices', [{}])[0].get('message', {}).get('content', '')
+        }
+        
+    except requests.exceptions.RequestException as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "chat_working": False
+        }
+
+@app.get("/api/models", response_model=List[Model])
+async def get_models(api_base: Optional[str] = None):
+    """Fetch available models from LM Studio or custom endpoint."""
+    try:
+        endpoint = api_base or DEFAULT_API_BASE
+        print(f"Models endpoint called with api_base: {endpoint}")
+        
+        # First try to get from LM Studio or custom endpoint
+        import requests
+        print(f"Fetching models from {endpoint}/models")
+        response = requests.get(f"{endpoint}/models", timeout=5)
         response.raise_for_status()
         data = response.json()
-        print(f"LM Studio returned: {len(data.get('data', []))} models")
+        print(f"LM Server returned: {len(data.get('data', []))} models")
         
         models = []
         for model in data.get("data", []):

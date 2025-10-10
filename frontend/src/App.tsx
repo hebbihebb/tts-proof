@@ -58,12 +58,21 @@ const AppContent = () => {
   const [processedText, setProcessedText] = useState<string>('');
   const [currentJobId, setCurrentJobId] = useState<string>('');
   const [chunkSize, setChunkSize] = useState<number>(8000);
+  const [currentEndpoint, setCurrentEndpoint] = useState<string>(() => {
+    const saved = localStorage.getItem('tts-proof-endpoint');
+    return saved || 'http://127.0.0.1:1234/v1';
+  });
 
   // Calculate estimated chunks based on text length and chunk size
   const calculateEstimatedChunks = (text: string, size: number) => {
     if (!text) return 0;
     return Math.ceil(text.length / size);
   };
+
+  // Save endpoint to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('tts-proof-endpoint', currentEndpoint);
+  }, [currentEndpoint]);
 
   // Initialize WebSocket connection
   useEffect(() => {
@@ -193,6 +202,7 @@ const AppContent = () => {
       const jobResult = await apiService.startProcessing({
         content: originalText,
         model_name: selectedModelId,
+        api_base: currentEndpoint,
         prompt_template: prompt,
         stream: false,
         show_progress: true,
@@ -272,7 +282,11 @@ const AppContent = () => {
               <h2 className="text-xl font-semibold mb-4 text-light-text dark:text-catppuccin-text">
                 Model Selection
               </h2>
-              <ModelPicker onModelSelect={setSelectedModelId} />
+              <ModelPicker 
+                onModelSelect={setSelectedModelId} 
+                onEndpointChange={setCurrentEndpoint}
+                currentEndpoint={currentEndpoint}
+              />
             </section>
 
             {/* File Analysis - Show when file is selected */}

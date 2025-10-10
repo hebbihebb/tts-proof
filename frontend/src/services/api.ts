@@ -46,9 +46,14 @@ class ApiService {
   private ws: WebSocket | null = null;
   private clientId: string = Math.random().toString(36).substring(7);
 
-  async fetchModels(): Promise<Model[]> {
+  async fetchModels(apiBase?: string): Promise<Model[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/models`);
+      const url = new URL(`${API_BASE_URL}/models`);
+      if (apiBase) {
+        url.searchParams.set('api_base', apiBase);
+      }
+      
+      const response = await fetch(url.toString());
       if (!response.ok) {
         throw new Error('Failed to fetch models');
       }

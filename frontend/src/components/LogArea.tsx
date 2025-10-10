@@ -21,26 +21,26 @@ export const LogArea: React.FC<LogAreaProps> = ({
   const getLogTypeStyles = (type: LogEntry['type']) => {
     switch (type) {
       case 'error':
-        return 'text-red-600 dark:text-red-400';
+        return 'text-catppuccin-red dark:text-catppuccin-red';
       case 'warning':
-        return 'text-amber-600 dark:text-amber-400';
+        return 'text-catppuccin-yellow dark:text-catppuccin-yellow';
       case 'success':
-        return 'text-green-600 dark:text-green-400';
+        return 'text-catppuccin-green dark:text-catppuccin-green';
       default:
-        return 'text-gray-700 dark:text-gray-300';
+        return 'text-light-text dark:text-catppuccin-text';
     }
   };
-  return <div className="w-full h-full bg-gray-50 dark:bg-dark-background border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden">
-      <div className="p-2 bg-gray-100 dark:bg-dark-card border-b border-gray-200 dark:border-dark-border">
-        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+  return <div className="w-full h-full bg-light-mantle dark:bg-catppuccin-mantle border border-light-surface0 dark:border-catppuccin-surface0 rounded-lg overflow-hidden">
+      <div className="p-2 bg-light-crust dark:bg-catppuccin-crust border-b border-light-surface0 dark:border-catppuccin-surface0">
+        <h3 className="text-sm font-medium text-light-text dark:text-catppuccin-text">
           Process Log
         </h3>
       </div>
       <div className="p-3 h-[calc(100%-32px)] overflow-y-auto font-mono text-sm">
-        {logs.length === 0 ? <p className="text-gray-500 dark:text-gray-400 italic">
+        {logs.length === 0 ? <p className="text-light-subtext1 dark:text-catppuccin-subtext1 italic">
             No logs yet. Start processing to see output here.
           </p> : logs.map(log => <div key={log.id} className="mb-1.5">
-              <span className="text-gray-500 dark:text-gray-500">
+              <span className="text-light-subtext0 dark:text-catppuccin-subtext0">
                 {log.timestamp.toLocaleTimeString()}
               </span>{' '}
               <span className={getLogTypeStyles(log.type)}>{log.message}</span>

@@ -16,7 +16,8 @@ A modern web-based application for batch grammar and spelling correction of Mark
 - **Drag & drop file uploads** with instant preview
 
 ### 🔧 Powerful Processing Engine
-- **Local-only processing** via LM Studio (`http://127.0.0.1:1234/v1`)
+- **Flexible LLM server support** with configurable endpoints (LM Studio, KoboldCpp, Oobabooga, TabbyAPI, etc.)
+- **Network-ready** - connect to local or remote servers on your network
 - **Intelligent chunking** (8000 chars) with progress tracking
 - **Crash-safe processing** with automatic checkpointing and resume
 - **Markdown structure preservation** (headings, lists, links, code blocks)
@@ -165,6 +166,33 @@ Choose the launcher that works best for your system!
 - Tailwind CSS for modern styling
 - Real-time WebSocket communication
 - Theme switching and responsive design
+
+---
+
+## 🌐 Server Configuration
+
+### Configuring LLM Server Endpoints
+
+TTS-Proof supports multiple LLM server backends with configurable endpoints:
+
+1. **Click the edit button** (📝) next to the model selection dropdown
+2. **Choose from presets:**
+   - **LM Studio**: `http://127.0.0.1:1234/v1` (default)
+   - **KoboldCpp**: `http://127.0.0.1:5001/v1`
+   - **Oobabooga**: `http://127.0.0.1:5000/v1`
+   - **TabbyAPI**: `http://127.0.0.1:5000/v1`
+
+3. **Or configure custom endpoints:**
+   - Enter custom IP address and port
+   - Full URL configuration support
+   - Network server support (e.g., `http://192.168.1.100:1234/v1`)
+
+### Remote Server Setup
+To connect to a server on another machine:
+1. Ensure the server accepts connections from your IP
+2. Use the custom endpoint option
+3. Enter the server's IP address and port
+4. Test connection by refreshing models
 
 ---
 

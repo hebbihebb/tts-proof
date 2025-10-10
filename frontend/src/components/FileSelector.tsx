@@ -34,14 +34,14 @@ export const FileSelector: React.FC<FileSelectorProps> = ({
   };
   return <div className="w-full">
       <div className={`border-2 border-dashed rounded-xl p-6 transition-all duration-200 flex flex-col items-center justify-center cursor-pointer
-          ${isDragging ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/10' : 'border-gray-300 dark:border-dark-border hover:border-primary-400 dark:hover:border-primary-600'}
-          dark:bg-dark-card`} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+          ${isDragging ? 'border-primary-500 bg-primary-50 dark:bg-catppuccin-blue/20' : 'border-light-surface1 dark:border-catppuccin-surface1 hover:border-primary-400 dark:hover:border-catppuccin-blue'}
+          bg-light-mantle dark:bg-catppuccin-mantle`} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
         {!selectedFile ? <>
-            <UploadIcon className="w-12 h-12 text-gray-400 dark:text-gray-500 mb-4" />
-            <p className="text-lg font-medium text-gray-700 dark:text-gray-300">
+            <UploadIcon className="w-12 h-12 text-light-subtext0 dark:text-catppuccin-subtext0 mb-4" />
+            <p className="text-lg font-medium text-light-text dark:text-catppuccin-text">
               Drag and drop your Markdown file here
             </p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">or</p>
+            <p className="text-sm text-light-subtext1 dark:text-catppuccin-subtext1 mt-2">or</p>
             <label className="mt-4">
               <input type="file" className="hidden" accept=".md,.txt,.markdown" onChange={handleFileChange} />
               <span className="bg-primary-500 hover:bg-primary-600 text-white px-4 py-2 rounded-lg transition-colors duration-200 cursor-pointer">
@@ -53,16 +53,16 @@ export const FileSelector: React.FC<FileSelectorProps> = ({
               <div className="flex items-center">
                 <FileIcon className="w-10 h-10 text-primary-500 mr-3" />
                 <div>
-                  <p className="text-lg font-medium text-gray-800 dark:text-gray-200">
+                  <p className="text-lg font-medium text-light-text dark:text-catppuccin-text">
                     {selectedFile.name}
                   </p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                  <p className="text-sm text-light-subtext1 dark:text-catppuccin-subtext1">
                     {(selectedFile.size / 1024).toFixed(2)} KB •{' '}
                     {selectedFile.type || 'Markdown'}
                   </p>
                 </div>
               </div>
-              <button onClick={clearFile} className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors" title="Remove file">
+              <button onClick={clearFile} className="p-2 text-light-subtext1 dark:text-catppuccin-subtext1 hover:text-catppuccin-red hover:bg-catppuccin-red/10 dark:hover:bg-catppuccin-red/20 rounded-full transition-colors" title="Remove file">
                 <XIcon className="w-5 h-5" />
               </button>
             </div>
