@@ -22,13 +22,13 @@ export const PreviewWindow: React.FC<PreviewWindowProps> = ({
       </div>
       <div className="flex-1 overflow-auto p-4">
         {activeTab === 'original' ? <div className="prose dark:prose-invert max-w-none">
-            <pre className="whitespace-pre-wrap text-sm text-light-text dark:text-catppuccin-text">
+            <div className="whitespace-pre-wrap break-all overflow-hidden text-sm text-light-text dark:text-catppuccin-text font-mono">
               {originalText || 'No original text loaded.'}
-            </pre>
+            </div>
           </div> : <div className="prose dark:prose-invert max-w-none">
-            <pre className="whitespace-pre-wrap text-sm text-light-text dark:text-catppuccin-text">
+            <div className="whitespace-pre-wrap break-all overflow-hidden text-sm text-light-text dark:text-catppuccin-text font-mono">
               {processedText || 'No processed text available. Process a file to see results.'}
-            </pre>
+            </div>
           </div>}
       </div>
       <div className="p-3 border-t border-light-surface0 dark:border-catppuccin-surface0 flex justify-between items-center bg-light-crust dark:bg-catppuccin-crust">
