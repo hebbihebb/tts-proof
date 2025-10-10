@@ -59,15 +59,24 @@ cd backend && python -m uvicorn app:app --host 0.0.0.0 --port 8000 --reload
 cd frontend && npm run dev
 ```
 
+### Platform-Specific Launchers
+
+- **Windows**: `launch.bat` or `launch.ps1` (PowerShell)
+- **Unix/Linux/macOS**: `launch.sh`
+- **Cross-platform**: `launch.py` (Python script with dependency checking)
+
 ### Testing
 
-- Backend: Run `python test_app.py` for API endpoint tests
-- No frontend tests currently (CLI tool has comprehensive testing in `md_proof.py`)
+- **Backend**: Run `python test_app.py` for API endpoint tests
+- **CLI tool**: Standalone `md_proof.py` has comprehensive built-in testing
+- **No frontend tests** currently implemented
 
 ### Dependencies
 
-- **Backend**: FastAPI, WebSockets, requests (see `backend/requirements.txt`)
-- **Frontend**: React 18, TypeScript, Tailwind, Vite, Lucide icons
+- **Backend**: FastAPI, WebSockets, requests, regex, pydantic (see `backend/requirements.txt`)
+- **Frontend**: React 18, TypeScript, Tailwind, Vite, Lucide icons, react-router-dom
+- **Python**: 3.10+ required (checked by launcher)
+- **Node.js**: 16+ required for frontend build
 
 ## Component Patterns
 
@@ -105,6 +114,8 @@ cd frontend && npm run dev
 - Use `pathlib.Path` for file operations
 - PowerShell/Bash scripts for Windows/Unix launcher alternatives
 - WebSocket connections work across all platforms
+
+## Common Gotchas
 
 ## Common Gotchas
 
