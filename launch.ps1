@@ -75,7 +75,7 @@ Write-Host ""
 Write-Host "🚀 Starting TTS-Proof application..." -ForegroundColor Green
 Write-Host ""
 Write-Host "Backend will start on: http://localhost:8000" -ForegroundColor Cyan
-Write-Host "Frontend will start on: http://localhost:5174" -ForegroundColor Cyan
+Write-Host "Frontend will start on: http://localhost:5173" -ForegroundColor Cyan
 Write-Host ""
 
 # Start backend in new window
@@ -94,7 +94,7 @@ Start-Sleep -Seconds 5
 # Open browser
 if (-not $NoAutoOpen) {
     Write-Host "🌐 Opening browser..." -ForegroundColor Green
-    Start-Process "http://localhost:5174"
+    Start-Process "http://localhost:5173"
 }
 
 Write-Host ""
@@ -103,7 +103,7 @@ Write-Host "🎉 TTS-Proof is now running!" -ForegroundColor Green
 Write-Host "==================================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "📍 Application URLs:" -ForegroundColor White
-Write-Host "   • Frontend (Web UI): http://localhost:5174" -ForegroundColor Cyan
+Write-Host "   • Frontend (Web UI): http://localhost:5173" -ForegroundColor Cyan
 Write-Host "   • Backend (API):     http://localhost:8000" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "📖 Usage:" -ForegroundColor White

@@ -184,11 +184,11 @@ class TTSProofLauncher:
         """Open the application in default browser"""
         print("\n🌐 Opening browser...")
         try:
-            webbrowser.open("http://localhost:5174")
+            webbrowser.open("http://localhost:5173")
             print("✓ Browser opened")
         except Exception as e:
             print(f"⚠️  Could not open browser automatically: {e}")
-            print("   Please open http://localhost:5174 manually")
+            print("   Please open http://localhost:5173 manually")
     
     def print_info(self):
         """Print application info"""
@@ -197,7 +197,7 @@ class TTSProofLauncher:
         print("="*50)
         print()
         print("📍 Application URLs:")
-        print("   • Frontend (Web UI): http://localhost:5174")
+        print("   • Frontend (Web UI): http://localhost:5173")
         print("   • Backend (API):     http://localhost:8000")
         print()
         print("📖 Usage:")

@@ -1,8 +1,15 @@
 @echo off
 title TTS-Proof Launcher
 echo.
-echo ===================================
-echo    TTS-Proof Application Launcher
+echo ============================:: Open browser
+echo Opening browser...
+start http://localhost:5173
+
+echo.
+echo TTS-Proof is now running!
+echo.
+echo - Backend: http://localhost:8000
+echo - Frontend: http://localhost:5173echo    TTS-Proof Application Launcher
 echo ===================================
 echo.
 
@@ -58,7 +65,7 @@ echo.
 echo Starting TTS-Proof application...
 echo.
 echo Backend will start on: http://localhost:8000
-echo Frontend will start on: http://localhost:5174
+echo Frontend will start on: http://localhost:5173
 echo.
 echo Press Ctrl+C to stop both servers
 echo.

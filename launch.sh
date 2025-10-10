@@ -53,7 +53,7 @@ echo ""
 echo "🚀 Starting TTS-Proof application..."
 echo ""
 echo "Backend will start on: http://localhost:8000"
-echo "Frontend will start on: http://localhost:5174"
+echo "Frontend will start on: http://localhost:5173"
 echo ""
 
 # Function to cleanup on exit
@@ -90,9 +90,9 @@ sleep 5
 
 # Try to open browser (if available)
 if command -v xdg-open &> /dev/null; then
-    xdg-open http://localhost:5174 2>/dev/null || true
+    xdg-open http://localhost:5173 2>/dev/null || true
 elif command -v open &> /dev/null; then
-    open http://localhost:5174 2>/dev/null || true
+    open http://localhost:5173 2>/dev/null || true
 fi
 
 echo ""
@@ -101,7 +101,7 @@ echo "🎉 TTS-Proof is now running!"
 echo "=================================================="
 echo ""
 echo "📍 Application URLs:"
-echo "   • Frontend (Web UI): http://localhost:5174"
+echo "   • Frontend (Web UI): http://localhost:5173"
 echo "   • Backend (API):     http://localhost:8000"
 echo ""
 echo "🛑 Press Ctrl+C to stop the application"
