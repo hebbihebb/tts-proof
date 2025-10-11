@@ -1,15 +1,7 @@
 @echo off
-title TTS-Proof Launcher
-echo.
-echo ============================:: Open browser
-echo Opening browser...
-start http://localhost:5173
-
-echo.
-echo TTS-Proof is now running!
-echo.
-echo - Backend: http://localhost:8000
-echo - Frontend: http://localhost:5173echo    TTS-Proof Application Launcher
+title TTS-Proof Application Launcher
+echo ===================================
+echo    TTS-Proof Application Launcher
 echo ===================================
 echo.
 
@@ -82,15 +74,32 @@ start "TTS-Proof Frontend" /D "%CD%\frontend" npm run dev
 :: Wait a moment for frontend to start
 timeout /t 5 /nobreak >nul
 
-:: Open browser
-echo Opening browser...
-start http://localhost:5174
+:: Wait for frontend to determine its actual port
+echo Waiting for frontend to start...
+timeout /t 8 /nobreak >nul
+
+:: Try to detect the actual port by checking common Vite ports
+set FRONTEND_PORT=5173
+call :check_port 5173 && set FRONTEND_PORT=5173 && goto :open_browser
+call :check_port 5174 && set FRONTEND_PORT=5174 && goto :open_browser
+call :check_port 5175 && set FRONTEND_PORT=5175 && goto :open_browser
+
+:open_browser
+echo Opening browser on port %FRONTEND_PORT%...
+start http://localhost:%FRONTEND_PORT%
 
 echo.
-echo TTS-Proof is now running!
+echo ===================================
+echo   TTS-Proof is now running!
+echo ===================================
 echo.
-echo - Backend: http://localhost:8000
-echo - Frontend: http://localhost:5174
+echo Backend: http://localhost:8000
+echo Frontend: http://localhost:%FRONTEND_PORT%
 echo.
 echo Close this window or press any key to continue...
 pause >nul
+goto :eof
+
+:check_port
+netstat -an | find ":%1 " >nul 2>&1
+exit /b %errorlevel%

@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 import tempfile
 import os
+import concurrent.futures
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
@@ -89,6 +90,182 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
+async def run_prepass_with_websocket(input_path: Path, api_base: str, model: str, 
+                                   chunk_chars: int = 8000, client_id: Optional[str] = None) -> Dict:
+    """Run prepass detection with WebSocket progress updates."""
+    from prepass import detect_tts_problems
+    from md_proof import chunk_paragraphs, load_markdown
+    from datetime import datetime
+    
+    # Track prepass job for cancellation
+    if client_id:
+        prepass_jobs[client_id] = {"status": "processing"}
+    
+    try:
+        print(f"WebSocket prepass starting - client_id: {client_id}")
+        
+        # Load and chunk the markdown (use same method as original prepass)
+        raw_text = input_path.read_text(encoding="utf-8")
+        chunks = chunk_paragraphs(raw_text, chunk_chars)
+        
+        # Filter to text chunks only (skip code blocks)
+        text_chunks = [(i, content) for i, (kind, content) in enumerate(chunks) if kind == "text"]
+        total_chunks = len(text_chunks)
+        
+        print(f"Found {total_chunks} text chunks to process")
+        
+        if client_id:
+            print(f"Sending initial progress message to client {client_id}")
+            await manager.send_message(client_id, {
+                "type": "progress",
+                "source": "prepass",
+                "progress": 0,
+                "message": f"Starting prepass detection on {total_chunks} chunks...",
+                "chunks_processed": 0,
+                "total_chunks": total_chunks
+            })
+            print("Initial progress message sent")
+    except Exception as e:
+        error_msg = f"Failed to load or chunk markdown: {str(e)}"
+        print(error_msg)
+        if client_id:
+            await manager.send_message(client_id, {
+                "type": "error",
+                "source": "prepass",
+                "message": error_msg
+            })
+        raise e
+    
+    # Process each chunk
+    report_chunks = []
+    all_problems = []
+    current_byte = 0
+    
+    print(f"Starting to process {len(text_chunks)} chunks...")
+    
+    try:
+        for chunk_idx, (original_idx, content) in enumerate(text_chunks):
+            # Check for cancellation
+            if client_id and prepass_jobs.get(client_id, {}).get("status") == "cancelled":
+                print(f"Prepass cancelled by user for client {client_id}")
+                break
+                
+            print(f"Processing chunk {chunk_idx + 1}/{len(text_chunks)}")
+            
+            # Find byte range (approximate)
+            start_byte = current_byte
+            end_byte = current_byte + len(content.encode('utf-8'))
+            current_byte = end_byte
+            
+            try:
+                # Detect problems in this chunk
+                print(f"Calling detect_tts_problems for chunk {chunk_idx + 1}")
+                
+                # Run the synchronous LLM call in a thread to avoid blocking the event loop
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    replacements = await asyncio.get_event_loop().run_in_executor(
+                        executor, detect_tts_problems, api_base, model, content, False
+                    )
+                
+                print(f"Chunk {chunk_idx + 1} completed with {len(replacements)} replacements")
+            except Exception as chunk_error:
+                print(f"Error processing chunk {chunk_idx + 1}: {chunk_error}")
+                # Continue with empty replacements for this chunk
+                replacements = []
+            
+            # Add to report
+            chunk_report = {
+                "id": chunk_idx + 1,
+                "range": {
+                    "start_byte": start_byte,
+                    "end_byte": end_byte
+                },
+                "replacements": replacements
+            }
+            report_chunks.append(chunk_report)
+            
+            # Collect all find words for summary
+            for replacement in replacements:
+                if replacement.get('find'):
+                    all_problems.append(replacement['find'])
+            
+            # Send progress update
+            progress = int((chunk_idx + 1) / total_chunks * 100)
+            if client_id:
+                print(f"Sending progress update: chunk {chunk_idx + 1}/{total_chunks} ({progress}%)")
+                await manager.send_message(client_id, {
+                    "type": "progress",
+                    "source": "prepass",
+                    "progress": progress,
+                    "message": f"Processed chunk {chunk_idx + 1}/{total_chunks}",
+                    "chunks_processed": chunk_idx + 1,
+                    "total_chunks": total_chunks
+                })
+                print("Progress update sent")
+    except Exception as processing_error:
+        error_msg = f"Error during chunk processing: {str(processing_error)}"
+        print(error_msg)
+        if client_id:
+            await manager.send_message(client_id, {
+                "type": "error",
+                "source": "prepass",
+                "message": error_msg
+            })
+        raise processing_error
+    
+    # Create summary with deduplicated problems and collect all replacements
+    unique_problems = list(dict.fromkeys(all_problems))  # Preserves order while removing duplicates
+    
+    # Collect all replacement mappings for grammar pass
+    all_replacements = {}
+    for chunk in report_chunks:
+        for replacement in chunk['replacements']:
+            find_text = replacement.get('find')
+            replace_text = replacement.get('replace')
+            if find_text and replace_text:
+                all_replacements[find_text] = replace_text
+    
+    # Build final report
+    report = {
+        "source": str(input_path.name),
+        "created_at": datetime.now().isoformat(),
+        "settings": {
+            "api_base": api_base,
+            "model": model,
+            "chunk_chars": chunk_chars
+        },
+        "summary": {
+            "unique_problem_words": unique_problems,
+            "replacement_map": all_replacements,
+            "total_chunks": total_chunks,
+            "total_problems": len(all_problems)
+        },
+        "chunks": report_chunks
+    }
+    
+    if client_id:
+        # Check if cancelled before sending completion
+        if prepass_jobs.get(client_id, {}).get("status") == "cancelled":
+            await manager.send_message(client_id, {
+                "type": "error",
+                "source": "prepass",
+                "message": "Prepass cancelled by user"
+            })
+        else:
+            await manager.send_message(client_id, {
+                "type": "completed",
+                "source": "prepass",
+                "progress": 100,
+                "message": f"Prepass completed! Found {len(unique_problems)} unique problems in {total_chunks} chunks.",
+                "result": report
+            })
+        
+        # Clean up job tracking
+        if client_id in prepass_jobs:
+            del prepass_jobs[client_id]
+    
+    return report
+
 # Pydantic models
 class ProcessRequest(BaseModel):
     content: str
@@ -110,6 +287,7 @@ class PrepassRequest(BaseModel):
     model_name: Optional[str] = None
     api_base: Optional[str] = None
     chunk_size: int = 8000
+    client_id: Optional[str] = None
 
 class Model(BaseModel):
     id: str
@@ -142,6 +320,7 @@ class JobStatus(BaseModel):
 
 # Global state for processing jobs
 processing_jobs: Dict[str, dict] = {}
+prepass_jobs: Dict[str, dict] = {}
 
 @app.get("/")
 async def root():
@@ -264,7 +443,7 @@ async def upload_file(file: UploadFile = File(...)):
 
 @app.post("/api/prepass")
 async def run_prepass_detection(request: PrepassRequest):
-    """Run prepass TTS problem detection on text."""
+    """Run prepass TTS problem detection on text with WebSocket progress updates."""
     try:
         # Create temporary file for processing
         temp_dir = tempfile.gettempdir()
@@ -275,17 +454,34 @@ async def run_prepass_detection(request: PrepassRequest):
             f.write(request.content)
         
         try:
-            # Run prepass detection
+            # Run prepass detection with WebSocket streaming
             api_base = request.api_base or DEFAULT_API_BASE
             model = request.model_name or DEFAULT_MODEL
             
-            report = run_prepass(
-                temp_file,
-                api_base,
-                model,
-                request.chunk_size,
-                show_progress=False
-            )
+            print(f"Starting prepass with file: {temp_file}, api_base: {api_base}, model: {model}")
+            
+            # Use WebSocket version if client_id provided for progress updates
+            if request.client_id:
+                print("Using WebSocket prepass for progress updates")
+                report = await run_prepass_with_websocket(
+                    temp_file,
+                    api_base,
+                    model,
+                    request.chunk_size,
+                    request.client_id
+                )
+                print("WebSocket prepass completed successfully")
+            else:
+                # Use original version when no WebSocket updates needed
+                print("Using original prepass (no progress updates)")
+                report = run_prepass(
+                    temp_file,
+                    api_base,
+                    model,
+                    request.chunk_size,
+                    show_progress=False
+                )
+                print("Original prepass completed successfully")
             
             return {
                 "status": "success",
@@ -306,7 +502,20 @@ async def run_prepass_detection(request: PrepassRequest):
                 
     except Exception as e:
         import traceback
+        print(f"Prepass detection error: {str(e)}")
         traceback.print_exc()
+        
+        # Send error via WebSocket if client_id available
+        if request.client_id:
+            try:
+                await manager.send_message(request.client_id, {
+                    "type": "error",
+                    "source": "prepass",
+                    "message": f"Prepass failed: {str(e)}"
+                })
+            except Exception as ws_e:
+                print(f"Failed to send WebSocket error message: {ws_e}")
+        
         raise HTTPException(status_code=500, detail=f"Prepass detection failed: {str(e)}")
 
 @app.post("/api/upload-prepass")
@@ -484,13 +693,20 @@ async def run_processing_job(job_id: str, request: ProcessRequest):
         
         with open(partial_path, fmode, encoding="utf-8") as fout:
             for idx in range(start_index, len(chunks)):
-                # Check for pause request
+                # Check for pause or cancel request
                 if processing_jobs[job_id]["status"] == "paused":
                     print(f"Job {job_id} paused at chunk {idx}")
                     processing_jobs[job_id]["can_resume"] = True
                     await manager.send_message(job_id, {
                         "type": "paused",
                         "message": f"Job paused at chunk {idx + 1}/{len(chunks)}"
+                    })
+                    return
+                elif processing_jobs[job_id]["status"] == "cancelled":
+                    print(f"Job {job_id} cancelled at chunk {idx}")
+                    await manager.send_message(job_id, {
+                        "type": "error",
+                        "message": f"Job cancelled by user at chunk {idx + 1}/{len(chunks)}"
                     })
                     return
                 
@@ -501,9 +717,16 @@ async def run_processing_job(job_id: str, request: ProcessRequest):
                     print(f"Processing text chunk {processed_text_so_far + 1}/{total_text_chunks} ({len(chunk_content)} chars)")
                     
                     try:
-                        # Process the chunk
-                        corrected = correct_chunk_with_prompt(api_base, model_name, chunk_content, 
-                                                            prompt_to_use, request.show_progress)
+                        # Process the chunk using async thread execution to avoid blocking
+                        print(f"Processing chunk {processed_text_so_far + 1}/{total_text_chunks}")
+                        
+                        with concurrent.futures.ThreadPoolExecutor() as executor:
+                            corrected = await asyncio.get_event_loop().run_in_executor(
+                                executor, correct_chunk_with_prompt, api_base, model_name, 
+                                chunk_content, prompt_to_use, request.show_progress
+                            )
+                        
+                        print(f"Chunk {processed_text_so_far + 1}/{total_text_chunks} completed")
                         
                         # Write to partial file
                         fout.write(corrected)
@@ -665,6 +888,45 @@ async def resume_job(job_id: str):
         return {"message": "Job resumed"}
     
     return {"message": f"Job cannot be resumed (status: {job['status']})"}
+
+@app.post("/api/job/{job_id}/cancel")
+async def cancel_job(job_id: str):
+    """Cancel a running job."""
+    if job_id not in processing_jobs:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    job = processing_jobs[job_id]
+    if job["status"] in ["processing", "paused"]:
+        job["status"] = "cancelled"
+        await manager.send_message(job_id, {
+            "type": "error",
+            "message": "Job cancelled by user"
+        })
+        return {"message": "Job cancelled"}
+    
+    return {"message": f"Job is {job['status']}, cannot cancel"}
+
+@app.post("/api/prepass/cancel")
+async def cancel_prepass(request: dict):
+    """Cancel a running prepass job."""
+    client_id = request.get("client_id")
+    if not client_id:
+        raise HTTPException(status_code=400, detail="client_id required")
+    
+    if client_id not in prepass_jobs:
+        raise HTTPException(status_code=404, detail="Prepass job not found")
+    
+    job = prepass_jobs[client_id]
+    if job["status"] == "processing":
+        job["status"] = "cancelled"
+        await manager.send_message(client_id, {
+            "type": "error",
+            "source": "prepass",
+            "message": "Prepass cancelled by user"
+        })
+        return {"message": "Prepass cancelled"}
+    
+    return {"message": f"Prepass is {job['status']}, cannot cancel"}
 
 @app.get("/api/job/{job_id}/chunks")
 async def get_job_chunks(job_id: str, limit: int = 5, offset: int = 0):

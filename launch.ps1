@@ -91,10 +91,30 @@ $frontendJob = Start-Process -FilePath "npm" -ArgumentList "run", "dev" -Working
 Write-Host "⏳ Waiting for servers to start..." -ForegroundColor Yellow
 Start-Sleep -Seconds 5
 
+# Detect actual frontend port
+Write-Host "🔍 Detecting frontend port..." -ForegroundColor Yellow
+Start-Sleep -Seconds 3
+
+$frontendPort = 5173
+$portsToCheck = @(5173, 5174, 5175, 5176)
+
+foreach ($port in $portsToCheck) {
+    try {
+        $response = Invoke-WebRequest -Uri "http://localhost:$port" -TimeoutSec 2 -ErrorAction SilentlyContinue
+        if ($response.StatusCode -eq 200) {
+            $frontendPort = $port
+            Write-Host "✓ Frontend detected on port $port" -ForegroundColor Green
+            break
+        }
+    } catch {
+        # Port not responding, continue checking
+    }
+}
+
 # Open browser
 if (-not $NoAutoOpen) {
-    Write-Host "🌐 Opening browser..." -ForegroundColor Green
-    Start-Process "http://localhost:5173"
+    Write-Host "🌐 Opening browser on port $frontendPort..." -ForegroundColor Green  
+    Start-Process "http://localhost:$frontendPort"
 }
 
 Write-Host ""
@@ -103,7 +123,7 @@ Write-Host "🎉 TTS-Proof is now running!" -ForegroundColor Green
 Write-Host "==================================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "📍 Application URLs:" -ForegroundColor White
-Write-Host "   • Frontend (Web UI): http://localhost:5173" -ForegroundColor Cyan
+Write-Host "   • Frontend (Web UI): http://localhost:$frontendPort" -ForegroundColor Cyan
 Write-Host "   • Backend (API):     http://localhost:8000" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "📖 Usage:" -ForegroundColor White

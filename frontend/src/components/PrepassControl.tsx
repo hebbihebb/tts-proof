@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Button } from './Button';
-import { Upload, Play, FileText, CheckCircle, XCircle } from 'lucide-react';
+import { Upload, Play, FileText, CheckCircle, XCircle, Square } from 'lucide-react';
 import { apiService } from '../services/api';
 
 interface PrepassControlProps {
@@ -11,11 +11,16 @@ interface PrepassControlProps {
   onUsePrepassChange: (use: boolean) => void;
   isRunningPrepass: boolean;
   onRunningPrepassChange: (running: boolean) => void;
+  onPrepassCancel?: () => void;
   content: string;
   modelId: string;
   endpoint: string;
   chunkSize: number;
   onLog: (message: string, type: 'info' | 'success' | 'warning' | 'error') => void;
+  prepassProgress: number;
+  prepassStatus: string;
+  prepassChunksProcessed: number;
+  prepassTotalChunks: number;
 }
 
 export const PrepassControl: React.FC<PrepassControlProps> = ({
@@ -26,13 +31,26 @@ export const PrepassControl: React.FC<PrepassControlProps> = ({
   onUsePrepassChange,
   isRunningPrepass,
   onRunningPrepassChange,
+  onPrepassCancel,
   content,
   modelId,
   endpoint,
   chunkSize,
-  onLog
+  onLog,
+  prepassProgress,
+  prepassStatus,
+  prepassChunksProcessed,
+  prepassTotalChunks
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
+
+  const handleCancelPrepass = () => {
+    if (onPrepassCancel) {
+      onPrepassCancel();
+    }
+    onRunningPrepassChange(false);
+    onLog('Prepass cancelled by user', 'warning');
+  };
 
   const handleRunPrepass = async () => {
     if (!content) {
@@ -119,6 +137,34 @@ export const PrepassControl: React.FC<PrepassControlProps> = ({
     return 'No prepass data';
   };
 
+  const renderProgressBar = () => {
+    if (!isRunningPrepass) return null;
+    
+    return (
+      <div className="w-full mt-2">
+        <div className="flex justify-between items-center mb-1">
+          <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+            {prepassStatus || 'Analyzing text patterns...'}
+          </span>
+          <span className="text-xs text-blue-600 dark:text-blue-400">
+            {prepassProgress}%
+          </span>
+        </div>
+        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+          <div 
+            className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-300" 
+            style={{ width: `${prepassProgress}%` }} 
+          />
+        </div>
+        {prepassTotalChunks > 0 && (
+          <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+            Chunks: {prepassChunksProcessed}/{prepassTotalChunks}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3">
@@ -140,16 +186,29 @@ export const PrepassControl: React.FC<PrepassControlProps> = ({
         )}
       </div>
 
+      {renderProgressBar()}
+
       <div className="flex flex-wrap gap-2">
-        <Button
-          onClick={handleRunPrepass}
-          disabled={isRunningPrepass || !content}
-          variant="secondary"
-          size="sm"
-        >
-          <Play className="h-4 w-4 mr-1" />
-          Run Prepass
-        </Button>
+        {!isRunningPrepass ? (
+          <Button
+            onClick={handleRunPrepass}
+            disabled={!content}
+            variant="secondary"
+            size="sm"
+          >
+            <Play className="h-4 w-4 mr-1" />
+            Run Prepass
+          </Button>
+        ) : (
+          <Button
+            onClick={handleCancelPrepass}
+            variant="secondary"
+            size="sm"
+          >
+            <Square className="h-4 w-4 mr-1" />
+            Cancel
+          </Button>
+        )}
 
         <div
           className={`relative ${isDragOver ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}

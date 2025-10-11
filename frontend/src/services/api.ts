@@ -33,9 +33,10 @@ export interface JobStatus {
 
 export interface WebSocketMessage {
   type: 'progress' | 'completed' | 'error' | 'chunk_complete' | 'chunk_error' | 'paused';
+  source?: 'prepass' | 'grammar'; // Identify if message is from prepass or main processing
   progress?: number;
   message: string;
-  result?: string;  // Final processed text (included in completion message)
+  result?: string | any;  // Final processed text or prepass report
   chunks_processed?: number;
   total_chunks?: number;
   total_processed?: number;
@@ -112,7 +113,10 @@ class ApiService {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(request),
+      body: JSON.stringify({
+        ...request,
+        client_id: this.clientId
+      }),
     });
 
     if (!response.ok) {
@@ -296,6 +300,36 @@ class ApiService {
       return response.ok;
     } catch (error) {
       console.error('Error resuming job:', error);
+      return false;
+    }
+  }
+
+  async cancelJob(jobId: string): Promise<boolean> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/job/${jobId}/cancel`, {
+        method: 'POST'
+      });
+      return response.ok;
+    } catch (error) {
+      console.error('Error cancelling job:', error);
+      return false;
+    }
+  }
+
+  async cancelPrepass(): Promise<boolean> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/prepass/cancel`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          client_id: this.clientId
+        }),
+      });
+      return response.ok;
+    } catch (error) {
+      console.error('Error cancelling prepass:', error);
       return false;
     }
   }

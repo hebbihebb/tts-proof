@@ -20,6 +20,9 @@ import subprocess
 import time
 import webbrowser
 import platform
+import socket
+import urllib.request
+import urllib.error
 from pathlib import Path
 
 class TTSProofLauncher:
@@ -70,6 +73,78 @@ class TTSProofLauncher:
         except Exception as e:
             print(f"❌ ERROR: Node.js not found - {e}")
             return False
+    
+    def is_port_in_use(self, port):
+        """Check if a port is already in use"""
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind(('localhost', port))
+                return False
+            except OSError:
+                return True
+    
+    def check_server_running(self, url, timeout=2):
+        """Check if a server is responding at the given URL"""
+        try:
+            urllib.request.urlopen(url, timeout=timeout)
+            return True
+        except (urllib.error.URLError, socket.timeout):
+            return False
+    
+    def detect_frontend_port(self):
+        """Detect which port the frontend is actually running on"""
+        ports_to_check = [5173, 5174, 5175, 5176, 5177]
+        
+        for port in ports_to_check:
+            if self.check_server_running(f"http://localhost:{port}"):
+                return port
+        
+        # If no server found, return default
+        return 5173
+    
+    def check_existing_servers(self):
+        """Check if servers are already running and prompt user"""
+        backend_running = self.check_server_running("http://localhost:8000")
+        frontend_port = None
+        
+        # Check common frontend ports
+        for port in [5173, 5174, 5175, 5176]:
+            if self.check_server_running(f"http://localhost:{port}"):
+                frontend_port = port
+                break
+        
+        if backend_running or frontend_port:
+            print("\n⚠️  Existing servers detected:")
+            if backend_running:
+                print("   • Backend already running on http://localhost:8000")
+            if frontend_port:
+                print(f"   • Frontend already running on http://localhost:{frontend_port}")
+            
+            print("\nOptions:")
+            print("   1. Continue anyway (may cause port conflicts)")
+            print("   2. Open existing application in browser")
+            print("   3. Exit")
+            
+            while True:
+                choice = input("\nChoose option (1/2/3): ").strip()
+                if choice == "1":
+                    print("🔄 Continuing with launch...")
+                    return "continue"
+                elif choice == "2":
+                    if frontend_port:
+                        print(f"🌐 Opening existing application...")
+                        webbrowser.open(f"http://localhost:{frontend_port}")
+                    else:
+                        print("🌐 Opening backend...")
+                        webbrowser.open("http://localhost:8000")
+                    return "existing"
+                elif choice == "3":
+                    print("👋 Exiting...")
+                    return "exit"
+                else:
+                    print("❌ Invalid choice. Please enter 1, 2, or 3.")
+        
+        return "launch"
     
     def check_backend_deps(self):
         """Check and install backend dependencies"""
@@ -182,22 +257,31 @@ class TTSProofLauncher:
     
     def open_browser(self):
         """Open the application in default browser"""
-        print("\n🌐 Opening browser...")
+        print("\n🔍 Detecting frontend port...")
+        
+        # Wait a bit more for frontend to fully start
+        time.sleep(2)
+        
+        frontend_port = self.detect_frontend_port()
+        
+        print(f"🌐 Opening browser on port {frontend_port}...")
         try:
-            webbrowser.open("http://localhost:5173")
+            webbrowser.open(f"http://localhost:{frontend_port}")
             print("✓ Browser opened")
+            return frontend_port
         except Exception as e:
             print(f"⚠️  Could not open browser automatically: {e}")
-            print("   Please open http://localhost:5173 manually")
+            print(f"   Please open http://localhost:{frontend_port} manually")
+            return frontend_port
     
-    def print_info(self):
+    def print_info(self, frontend_port=5173):
         """Print application info"""
         print("\n" + "="*50)
         print("🎉 TTS-Proof is now running!")
         print("="*50)
         print()
         print("📍 Application URLs:")
-        print("   • Frontend (Web UI): http://localhost:5173")
+        print(f"   • Frontend (Web UI): http://localhost:{frontend_port}")
         print("   • Backend (API):     http://localhost:8000")
         print()
         print("📖 Usage:")
@@ -248,6 +332,16 @@ class TTSProofLauncher:
             input("Press Enter to exit...")
             return False
         
+        # Check for existing servers
+        server_status = self.check_existing_servers()
+        if server_status == "exit":
+            return False
+        elif server_status == "existing":
+            input("Press Enter to exit...")
+            return True
+        elif server_status == "continue":
+            print("⚠️  Proceeding with potential port conflicts...")
+        
         # Check and install dependencies
         if not self.check_backend_deps():
             input("Press Enter to exit...")
@@ -264,8 +358,8 @@ class TTSProofLauncher:
         
         # Wait for servers and open browser
         self.wait_for_servers()
-        self.open_browser()
-        self.print_info()
+        frontend_port = self.open_browser()
+        self.print_info(frontend_port)
         
         # Keep launcher running (except on Windows where processes are in new windows)
         if platform.system() != "Windows":

@@ -11,7 +11,7 @@ import { Button } from './components/Button';
 import { FileAnalysis } from './components/FileAnalysis';
 import { ChunkSizeControl } from './components/ChunkSizeControl';
 import { PrepassControl } from './components/PrepassControl';
-import { EditIcon, PlayIcon, SaveIcon } from 'lucide-react';
+import { EditIcon, PlayIcon, SaveIcon, Square } from 'lucide-react';
 import { apiService, WebSocketMessage } from './services/api';
 // Fallback prompt if API fails to load
 const FALLBACK_PROMPT = `You are a grammar and spelling corrector for Markdown text.
@@ -59,7 +59,7 @@ const AppContent = () => {
   const [logs, setLogs] = useState(MOCK_LOGS);
   const [originalText, setOriginalText] = useState<string>('');
   const [processedText, setProcessedText] = useState<string>('');
-  const [currentJobId, setCurrentJobId] = useState<string>('');
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
   const [chunkSize, setChunkSize] = useState<number>(8000);
   const [currentEndpoint, setCurrentEndpoint] = useState<string>(() => {
     const saved = localStorage.getItem('tts-proof-endpoint');
@@ -68,6 +68,10 @@ const AppContent = () => {
   const [prepassReport, setPrepassReport] = useState<any>(null);
   const [usePrepass, setUsePrepass] = useState<boolean>(false);
   const [isRunningPrepass, setIsRunningPrepass] = useState<boolean>(false);
+  const [prepassProgress, setPrepassProgress] = useState<number>(0);
+  const [prepassStatus, setPrepassStatus] = useState<string>('');
+  const [prepassChunksProcessed, setPrepassChunksProcessed] = useState<number>(0);
+  const [prepassTotalChunks, setPrepassTotalChunks] = useState<number>(0);
 
   // Calculate estimated chunks based on text length and chunk size
   const calculateEstimatedChunks = (text: string, size: number) => {
@@ -98,6 +102,47 @@ const AppContent = () => {
   // Initialize WebSocket connection
   useEffect(() => {
     const handleWebSocketMessage = (message: WebSocketMessage) => {
+      // Handle prepass messages separately
+      if (message.source === 'prepass') {
+        console.log('Received prepass WebSocket message:', message);
+        switch (message.type) {
+          case 'progress':
+            console.log(`Prepass progress: ${message.progress}% (${message.chunks_processed}/${message.total_chunks})`);
+            if (message.progress !== undefined) {
+              setPrepassProgress(message.progress);
+            }
+            if (message.chunks_processed !== undefined) {
+              setPrepassChunksProcessed(message.chunks_processed);
+            }
+            if (message.total_chunks !== undefined) {
+              setPrepassTotalChunks(message.total_chunks);
+            }
+            setPrepassStatus(message.message);
+            addLog(message.message, 'info');
+            break;
+          case 'completed':
+            setIsRunningPrepass(false);
+            setPrepassProgress(100);
+            setPrepassStatus('Prepass completed');
+            if (message.result) {
+              setPrepassReport(message.result);
+            }
+            addLog(message.message, 'success');
+            // Auto-start grammar processing after prepass completion
+            addLog('Starting grammar processing automatically...', 'info');
+            setTimeout(() => handleProcess(), 1000); // Small delay for UI feedback
+            break;
+          case 'error':
+            setIsRunningPrepass(false);
+            setPrepassProgress(0);
+            setPrepassStatus('Prepass failed');
+            addLog(message.message, 'error');
+            break;
+        }
+        return;
+      }
+
+      // Handle main processing messages
       switch (message.type) {
         case 'progress':
           if (message.progress !== undefined) {
@@ -241,6 +286,32 @@ const AppContent = () => {
       addLog(`Failed to start processing: ${error}`, 'error');
     }
   };
+
+  const handleCancelProcess = async () => {
+    if (currentJobId) {
+      try {
+        await apiService.cancelJob(currentJobId);
+        addLog('Processing cancelled by user', 'warning');
+      } catch (error) {
+        addLog(`Failed to cancel processing: ${error}`, 'error');
+      }
+    }
+    setIsProcessing(false);
+    setProgress(0);
+    setStatus('Processing cancelled');
+    setCurrentJobId(null);
+  };
+
+  const handleCancelPrepass = async () => {
+    // This will be called by PrepassControl when cancel is clicked
+    try {
+      await apiService.cancelPrepass();
+      addLog('Prepass cancelled by user', 'warning');
+    } catch (error) {
+      addLog(`Failed to cancel prepass: ${error}`, 'error');
+    }
+  };
+
   const addLog = (message: string, type: 'info' | 'warning' | 'error' | 'success') => {
     setLogs(prev => [...prev, {
       id: Date.now().toString(),
@@ -340,7 +411,7 @@ const AppContent = () => {
           {/* Row 2: Prepass Control */}
           <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-4 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0">
             <h2 className="text-lg font-semibold mb-3 text-light-text dark:text-catppuccin-text">
-              TTS Prepass Detection
+              TTS Prepass
             </h2>
             <PrepassControl
               onPrepassComplete={(report) => {
@@ -353,11 +424,16 @@ const AppContent = () => {
               onUsePrepassChange={setUsePrepass}
               isRunningPrepass={isRunningPrepass}
               onRunningPrepassChange={setIsRunningPrepass}
+              onPrepassCancel={handleCancelPrepass}
               content={originalText}
               modelId={selectedModelId}
               endpoint={currentEndpoint}
               chunkSize={chunkSize}
               onLog={addLog}
+              prepassProgress={prepassProgress}
+              prepassStatus={prepassStatus}
+              prepassChunksProcessed={prepassChunksProcessed}
+              prepassTotalChunks={prepassTotalChunks}
             />
           </section>
 
@@ -381,13 +457,19 @@ const AppContent = () => {
           {/* Row 2: Processing */}
           <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-4 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0">
             <h2 className="text-lg font-semibold mb-3 text-light-text dark:text-catppuccin-text">
-              Processing
+              Process Document
             </h2>
             <ProgressBar progress={progress} status={status} isProcessing={isProcessing} />
             <div className="mt-3 flex space-x-3">
-              <Button onClick={handleProcess} disabled={!file || isProcessing} isLoading={isProcessing} icon={<PlayIcon className="w-4 h-4" />} className="flex-1">
-                Process Text
-              </Button>
+              {!isProcessing ? (
+                <Button onClick={handleProcess} disabled={!file} icon={<PlayIcon className="w-4 h-4" />} className="flex-1">
+                  Process Text
+                </Button>
+              ) : (
+                <Button onClick={handleCancelProcess} variant="outline" icon={<Square className="w-4 h-4" />} className="flex-1">
+                  Cancel Processing
+                </Button>
+              )}
               <Button variant="outline" onClick={handleSaveProcessedText} disabled={!processedText} icon={<SaveIcon className="w-4 h-4" />} className="flex-1">
                 Save Result
               </Button>

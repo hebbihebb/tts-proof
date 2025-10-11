@@ -1,3 +1,5 @@
+import { Loader2 } from 'lucide-react';
+
 interface ProgressBarProps {
   progress: number; // 0 to 100
   status: string;
@@ -12,9 +14,14 @@ export const ProgressBar = ({
   return (
     <div className="w-full">
       <div className="flex justify-between items-center mb-2">
-        <span className="text-sm font-medium text-light-text dark:text-catppuccin-text">
-          {isProcessing ? 'Processing' : 'Ready'}
-        </span>
+        <div className="flex items-center gap-2">
+          {isProcessing && (
+            <Loader2 className="animate-spin h-4 w-4 text-catppuccin-mauve" />
+          )}
+          <span className="text-sm font-medium text-light-text dark:text-catppuccin-text">
+            {isProcessing ? 'Processing' : 'Ready'}
+          </span>
+        </div>
         <span className="text-sm text-light-subtext1 dark:text-catppuccin-subtext1">
           {progress}%
         </span>

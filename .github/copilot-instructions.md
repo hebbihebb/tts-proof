@@ -2,13 +2,14 @@
 
 ## Architecture Overview
 
-TTS-Proof is a **local-first** grammar correction tool with a React/TypeScript frontend and FastAPI backend that processes Markdown files via local LLM servers (LM Studio). The system is designed around **crash-safe chunked processing** with real-time WebSocket updates.
+TTS-Proof is a **local-first** grammar correction tool with a React/TypeScript frontend and FastAPI backend that processes Markdown files via local LLM servers (LM Studio). The system is designed around **crash-safe chunked processing** with real-time WebSocket updates and **TTS prepass detection**.
 
 ### Key Components
 
 - **Backend** (`backend/app.py`): FastAPI server with WebSocket support, imports core logic from `md_proof.py`
 - **Frontend** (`frontend/src/`): React + TypeScript + Tailwind, uses Vite for dev server
 - **Core Engine** (`md_proof.py`): Standalone CLI tool with chunking, checkpointing, and LM Studio integration
+- **Prepass Engine** (`prepass.py`): TTS problem detector that finds stylized text patterns before grammar correction
 - **Launcher** (`launch.py`): Cross-platform script that starts both frontend and backend servers
 
 ## Critical Patterns
@@ -42,11 +43,19 @@ final = unmask_urls(corrected, urls)
 - Message types: `progress`, `completed`, `error`, `chunk_complete`, `paused`
 - **Always** include progress percentage and descriptive messages
 
-### 4. File Handling Conventions
+### 4. TTS Prepass Detection
+
+- **Two-stage processing**: Optional prepass detects TTS problems before grammar correction
+- **Pattern detection**: Finds stylized text (`F ʟ ᴀ s ʜ` → `Flash`), hyphenated letters (`U-N-I-T-E-D` → `United`)
+- **Report integration**: Prepass results injected into grammar prompt via `inject_prepass_into_grammar_prompt()`
+- **Frontend control**: `PrepassControl.tsx` component manages prepass workflow with visual feedback
+
+### 5. File Handling Conventions
 
 - **Checkpointing**: `.partial` files for crash recovery (`write_ckpt`/`load_ckpt`)
 - **Temporary files**: Use `tempfile` module, cleanup on completion
 - **Path patterns**: `paths_for(input_path)` generates `.partial` and output paths
+- **Prepass reports**: Stored as JSON with replacement mappings and problem word lists
 
 ## Development Workflows
 
@@ -69,6 +78,9 @@ cd frontend && npm run dev
 
 - **Backend**: Run `python test_app.py` for API endpoint tests
 - **CLI tool**: Standalone `md_proof.py` has comprehensive built-in testing
+- **Prepass**: `test_prepass.py` and `test_prepass_integration.py` for TTS detection validation
+- **Integration**: `test_integration.py` for end-to-end workflow testing
+- **Sentinel parsing**: `test_sentinel.py` for LLM response extraction
 - **No frontend tests** currently implemented
 
 ### Dependencies

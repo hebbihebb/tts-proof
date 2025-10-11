@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Runtime files
+*.partial
+*.corrected.md
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+
+# Node modules (already in frontend/.gitignore but good to have)
+node_modules/
+dist/
+
+# Build artifacts
+build/
+*.egg-info/
