@@ -288,7 +288,7 @@ const AppContent = () => {
                   v2.2.0
                 </span>
                 <span className="px-2.5 py-1 bg-catppuccin-mauve/20 dark:bg-catppuccin-mauve/10 text-catppuccin-mauve dark:text-catppuccin-mauve text-xs font-medium rounded-full">
-                  "Zoom Master"
+                  "Responsive Fix"
                 </span>
               </div>
             </div>
