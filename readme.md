@@ -1,5 +1,25 @@
 # TTS-Proof - Modern Grammar Correction Tool
 
+## 📚 What Does This Do? (Simple Version)
+
+Got a document with terrible spelling, weird formatting, or messy translation? Here's your fix:
+
+1. **Convert your document to Markdown** using tools like [Calibre](https://calibre-ebook.com/) or [Pandoc](https://pandoc.org/)
+2. **Run it through TTS-Proof** - it uses AI to clean up grammar, spelling, and odd text formatting
+3. **Convert it back** to your original format (PDF, DOCX, EPUB, etc.)
+4. **Voilà!** ✨ Clean, readable document ready to go
+
+Perfect for cleaning up:
+- 📖 **Ebooks** with OCR errors or poor formatting
+- 🌐 **Web articles** that were badly translated  
+- 📝 **Old documents** with outdated spelling conventions
+- 🤖 **AI-generated text** that needs polishing
+- 📄 **Any text** that just looks messy and unprofessional
+
+*No internet required - everything runs locally on your computer for privacy!*
+
+---
+
 ## Overview
 
 A modern web-based application for batch grammar and spelling correction of Markdown files using **local LLM** servers (LM Studio). Features a beautiful React frontend with optimized layout, real-time progress tracking, and a robust FastAPI backend that preserves all original processing capabilities.
@@ -277,7 +297,44 @@ uvicorn app:app --host 0.0.0.0 --port 8000
 
 ---
 
-## 🐛 Troubleshooting
+## � TODO / Future Enhancements
+
+### 🎯 UI/UX Improvements
+- [ ] **Separate model picker for prepass** - Allow different models for TTS detection vs grammar correction
+- [ ] **Expose prepass prompt in web UI** - Make TTS detection prompts editable like grammar prompts
+- [ ] **Reorganize web UI layout** - Improve component arrangement for more intuitive workflow
+- [ ] **Real-time chunk preview** - Display processed chunks as they complete, not just final result
+- [ ] **Open temp files location button** - Quick access to temporary/processing files directory in file browser
+- [ ] **Batch file processing** *(optional)* - Support multiple file uploads and queue management
+- [ ] **Processing history** *(optional)* - Keep track of recently processed files and settings
+
+### 🔧 Core Features *(optional enhancements)*
+- [ ] **Custom prompt templates** - Save and switch between different correction strategies
+- [ ] **Processing profiles** - Quick presets for different document types (academic, creative, technical)
+- [ ] **Diff view** - Side-by-side comparison showing original vs corrected text with highlights
+- [ ] **Export options** - Support for different output formats (PDF, DOCX, plain text)
+- [ ] **Undo/redo functionality** - Allow users to revert or modify corrections
+- [ ] **Smart resume** - Better checkpoint recovery with partial chunk restoration
+
+### 🚀 Advanced Features *(optional enhancements)*
+- [ ] **Model performance analytics** - Track processing speed and quality metrics per model
+- [ ] **API rate limiting** - Configurable delays between LLM calls to prevent server overload
+- [ ] **Collaborative editing** - Multi-user support with real-time synchronization
+- [ ] **Plugin system** - Extensible architecture for custom processing rules
+- [ ] **Cloud deployment** - Docker containerization and deployment guides
+- [ ] **Mobile responsiveness** - Optimize interface for tablet and mobile devices
+
+### 🧪 Quality & Testing *(optional enhancements)*
+- [ ] **Automated testing suite** - Comprehensive unit and integration tests
+- [ ] **Performance benchmarking** - Measure and optimize processing speeds
+- [ ] **Error recovery** - Better handling of network interruptions and server failures
+- [ ] **Logging improvements** - More detailed debugging and audit trails
+
+*Contributions welcome! Feel free to tackle any of these items or suggest new features.*
+
+---
+
+## �🐛 Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
