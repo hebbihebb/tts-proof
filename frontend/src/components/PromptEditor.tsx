@@ -1,21 +1,36 @@
 import React, { useState } from 'react';
 import { XIcon, SaveIcon } from 'lucide-react';
+import { apiService } from '../services/api';
+
 interface PromptEditorProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (prompt: string) => void;
   initialPrompt: string;
+  onLog?: (message: string, type: 'info' | 'success' | 'warning' | 'error') => void;
 }
 export const PromptEditor: React.FC<PromptEditorProps> = ({
   isOpen,
   onClose,
   onSave,
-  initialPrompt
+  initialPrompt,
+  onLog
 }) => {
   const [prompt, setPrompt] = useState<string>(initialPrompt);
-  const handleSave = () => {
-    onSave(prompt);
-    onClose();
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await apiService.saveGrammarPrompt(prompt);
+      onSave(prompt);
+      onLog?.('Grammar prompt saved successfully', 'success');
+      onClose();
+    } catch (error) {
+      onLog?.(`Failed to save grammar prompt: ${error}`, 'error');
+    } finally {
+      setIsSaving(false);
+    }
   };
   if (!isOpen) return null;
   return <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -67,9 +82,13 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
           <button onClick={onClose} className="px-4 py-2 text-light-subtext1 dark:text-catppuccin-subtext1 hover:bg-light-surface0 dark:hover:bg-catppuccin-surface0 rounded-lg mr-2 transition-colors">
             Cancel
           </button>
-          <button onClick={handleSave} className="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg flex items-center transition-colors">
-            <SaveIcon className="w-4 h-4 mr-2" />
-            Save Prompt
+          <button 
+            onClick={handleSave} 
+            disabled={isSaving}
+            className="px-4 py-2 bg-primary-500 hover:bg-primary-600 disabled:bg-gray-400 text-white rounded-lg flex items-center transition-colors"
+          >
+            <SaveIcon className={`w-4 h-4 mr-2 ${isSaving ? 'animate-spin' : ''}`} />
+            {isSaving ? 'Saving...' : 'Save Prompt'}
           </button>
         </div>
       </div>

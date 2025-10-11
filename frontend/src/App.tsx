@@ -10,20 +10,23 @@ import { PreviewWindow } from './components/PreviewWindow';
 import { Button } from './components/Button';
 import { FileAnalysis } from './components/FileAnalysis';
 import { ChunkSizeControl } from './components/ChunkSizeControl';
+import { PrepassControl } from './components/PrepassControl';
 import { EditIcon, PlayIcon, SaveIcon } from 'lucide-react';
 import { apiService, WebSocketMessage } from './services/api';
-// Use the high-quality grammar prompt that matches the original
-const DEFAULT_PROMPT = `You are a Markdown-preserving cleaner for TTS.
-Rules (apply to text only; never edit Markdown syntax, code blocks, inline code,
-links/URLs, images, or HTML tags):
+// Fallback prompt if API fails to load
+const FALLBACK_PROMPT = `You are a grammar and spelling corrector for Markdown text.
 
-1) Normalize stylized Unicode letters to plain ASCII; keep accents in real words.
-2) Fix weird casing: mid-word caps → normal; ALL-CAPS → Title/normal unless a true acronym (≤5 letters and common: NASA, GPU).
-3) Collapse inter-letter spacing artifacts to single words (already mostly done).
-4) Keep onomatopoeia but avoid spelled-out effects.
-5) Keep brackets; normalize inside: "[M ᴇ ɢ ᴀ B ᴜ s ᴛ ᴇ ʀ]" → "[Mega Buster]".
-6) Light grammar/spelling/punctuation spacing; do not change meaning or tone.
-7) Preserve all Markdown structure exactly.
+Primary focus:
+1) Fix grammar, spelling, and punctuation errors
+2) Improve sentence flow and readability
+3) Normalize spacing and formatting inconsistencies
+
+Preservation rules:
+- Never edit Markdown syntax, code blocks, inline code, links/URLs, images, or HTML tags
+- Keep all Markdown structure exactly as-is
+- Preserve meaning and tone
+- Keep valid acronyms (NASA, GPU, API, etc.)
+
 Output only the corrected Markdown; no explanations.`;
 // Mock log entries
 const MOCK_LOGS: Array<{
@@ -49,7 +52,7 @@ const AppContent = () => {
   const [file, setFile] = useState<File | null>(null);
   const [selectedModelId, setSelectedModelId] = useState<string>('');
   const [isPromptEditorOpen, setIsPromptEditorOpen] = useState<boolean>(false);
-  const [prompt, setPrompt] = useState<string>(DEFAULT_PROMPT);
+  const [prompt, setPrompt] = useState<string>(FALLBACK_PROMPT);
   const [progress, setProgress] = useState<number>(0);
   const [status, setStatus] = useState<string>('Ready to process');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -62,12 +65,30 @@ const AppContent = () => {
     const saved = localStorage.getItem('tts-proof-endpoint');
     return saved || 'http://127.0.0.1:1234/v1';
   });
+  const [prepassReport, setPrepassReport] = useState<any>(null);
+  const [usePrepass, setUsePrepass] = useState<boolean>(false);
+  const [isRunningPrepass, setIsRunningPrepass] = useState<boolean>(false);
 
   // Calculate estimated chunks based on text length and chunk size
   const calculateEstimatedChunks = (text: string, size: number) => {
     if (!text) return 0;
     return Math.ceil(text.length / size);
   };
+
+  // Load grammar prompt from backend on startup
+  useEffect(() => {
+    const loadGrammarPrompt = async () => {
+      try {
+        const grammarData = await apiService.getGrammarPrompt();
+        setPrompt(grammarData.prompt);
+        addLog(`Loaded grammar prompt from ${grammarData.source}`, 'info');
+      } catch (error) {
+        console.error('Failed to load grammar prompt:', error);
+        addLog('Using fallback grammar prompt', 'warning');
+      }
+    };
+    loadGrammarPrompt();
+  }, []);
 
   // Save endpoint to localStorage when it changes
   useEffect(() => {
@@ -207,7 +228,9 @@ const AppContent = () => {
         stream: false,
         show_progress: true,
         chunk_size: chunkSize,
-        preview_chars: 500
+        preview_chars: 500,
+        use_prepass: usePrepass,
+        prepass_report: usePrepass ? prepassReport : undefined
       });
 
       addLog(`Processing job started: ${jobResult.job_id}`, 'info');
@@ -309,6 +332,27 @@ const AppContent = () => {
               />
             </section>
 
+            {/* Prepass Control */}
+            <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-6 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0">
+              <h2 className="text-xl font-semibold mb-4 text-light-text dark:text-catppuccin-text">
+                TTS Prepass Detection
+              </h2>
+              <PrepassControl
+                onPrepassComplete={setPrepassReport}
+                onPrepassClear={() => setPrepassReport(null)}
+                prepassReport={prepassReport}
+                usePrepass={usePrepass}
+                onUsePrepassChange={setUsePrepass}
+                isRunningPrepass={isRunningPrepass}
+                onRunningPrepassChange={setIsRunningPrepass}
+                content={originalText}
+                modelId={selectedModelId}
+                endpoint={currentEndpoint}
+                chunkSize={chunkSize}
+                onLog={addLog}
+              />
+            </section>
+
             <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-6 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold text-light-text dark:text-catppuccin-text">
@@ -365,7 +409,13 @@ const AppContent = () => {
       </div>
 
       {/* Prompt Editor Modal */}
-      <PromptEditor isOpen={isPromptEditorOpen} onClose={() => setIsPromptEditorOpen(false)} onSave={setPrompt} initialPrompt={prompt} />
+      <PromptEditor 
+        isOpen={isPromptEditorOpen} 
+        onClose={() => setIsPromptEditorOpen(false)} 
+        onSave={setPrompt} 
+        initialPrompt={prompt} 
+        onLog={addLog}
+      />
     </div>;
 };
 export function App() {

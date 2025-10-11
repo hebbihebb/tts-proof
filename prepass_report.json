@@ -1,0 +1,106 @@
+{
+  "source": "test_input.md",
+  "created_at": "2025-10-11T00:14:11.766808",
+  "chunks": [
+    {
+      "id": 1,
+      "range": {
+        "start_byte": 0,
+        "end_byte": 1044
+      },
+      "replacements": [
+        {
+          "find": "F L A S H   D A N C E",
+          "replace": "Flash Dance",
+          "reason": "Stylized spaced letters should be normalized to standard word form for TTS clarity"
+        },
+        {
+          "find": "T E S T",
+          "replace": "TEST",
+          "reason": "Spaced letters in a word context should be merged into a single word with standard capitalization"
+        },
+        {
+          "find": "[M ᴇ ɢ ᴀ   B ᴜ s ᴛ ᴇ ʀ]",
+          "replace": "[Mega Buster]",
+          "reason": "Stylized bracketed letters with mixed case and spacing should be normalized to readable form"
+        },
+        {
+          "find": "REALLY LONG CAPITALIZED TITLE",
+          "replace": "Really Long Capitalized Title",
+          "reason": "ALL-CAPS titles should be converted to sentence case for natural TTS delivery"
+        },
+        {
+          "find": "ANOTHER_WEIRD_CAPS_THING",
+          "replace": "Another Weird Caps Thing",
+          "reason": "Underscore-separated caps should be converted to spaced, readable words"
+        },
+        {
+          "find": "STRANGE_ACRONYM_EXAMPLE",
+          "replace": "Strangely, this is not a valid acronym",
+          "reason": "Non-standard acronyms with underscore caps should be replaced with natural language to avoid TTS confusion"
+        },
+        {
+          "find": "U-N-I-T-E-D S-T-A-T-E-S",
+          "replace": "United States",
+          "reason": "Hyphenated letter sequences should be merged into standard words"
+        },
+        {
+          "find": "S-P-A-C-E-D",
+          "replace": "Spaced",
+          "reason": "Hyphenated letter sequences should be merged into standard words"
+        },
+        {
+          "find": "F L A S H",
+          "replace": "Flash",
+          "reason": "Repeated stylized spaced letters should be deduplicated and normalized"
+        },
+        {
+          "find": "Q-u-i-c-k",
+          "replace": "Quick",
+          "reason": "Hyphenated or spaced letters in a word should be merged into standard form"
+        },
+        {
+          "find": "CAPS LOCK TEXT",
+          "replace": "Caps Lock Text",
+          "reason": "All caps text should be normalized to title case for better TTS readability"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "range": {
+        "start_byte": 1044,
+        "end_byte": 1098
+      },
+      "replacements": []
+    }
+  ],
+  "summary": {
+    "unique_problem_words": [
+      "F L A S H   D A N C E",
+      "T E S T",
+      "[M ᴇ ɢ ᴀ   B ᴜ s ᴛ ᴇ ʀ]",
+      "REALLY LONG CAPITALIZED TITLE",
+      "ANOTHER_WEIRD_CAPS_THING",
+      "STRANGE_ACRONYM_EXAMPLE",
+      "U-N-I-T-E-D S-T-A-T-E-S",
+      "S-P-A-C-E-D",
+      "F L A S H",
+      "Q-u-i-c-k",
+      "CAPS LOCK TEXT"
+    ],
+    "replacement_map": {
+      "F L A S H   D A N C E": "Flash Dance",
+      "T E S T": "TEST",
+      "[M ᴇ ɢ ᴀ   B ᴜ s ᴛ ᴇ ʀ]": "[Mega Buster]",
+      "REALLY LONG CAPITALIZED TITLE": "Really Long Capitalized Title",
+      "ANOTHER_WEIRD_CAPS_THING": "Another Weird Caps Thing",
+      "STRANGE_ACRONYM_EXAMPLE": "Strangely, this is not a valid acronym",
+      "U-N-I-T-E-D S-T-A-T-E-S": "United States",
+      "S-P-A-C-E-D": "Spaced",
+      "F L A S H": "Flash",
+      "Q-u-i-c-k": "Quick",
+      "CAPS LOCK TEXT": "Caps Lock Text"
+    }
+  }
+}

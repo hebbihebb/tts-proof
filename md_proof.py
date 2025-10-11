@@ -119,15 +119,29 @@ def call_lmstudio(api_base, model, system_prompt, user_text, temperature=0.0, ma
 
 def extract_between_sentinels(text: str):
     start = text.find(SENTINEL_START); end = text.rfind(SENTINEL_END)
-    if start == -1 or end == -1: return text.strip()
-    start += len(SENTINEL_START); return text[start:end].strip()
+    if start == -1 or end == -1: 
+        # If no sentinels found, clean up any stray sentinels in the text
+        cleaned = text.replace(SENTINEL_START, "").replace(SENTINEL_END, "")
+        return cleaned.strip()
+    start += len(SENTINEL_START); 
+    extracted = text[start:end].strip()
+    # Additional cleanup in case of partial sentinels
+    extracted = extracted.replace(SENTINEL_START, "").replace(SENTINEL_END, "")
+    return extracted
 
-def correct_chunk(api_base, model, raw_text: str, show_spinner: bool):
+def correct_chunk(api_base, model, raw_text: str, show_spinner: bool, chunk_replacements=None):
     masked, urls = mask_urls(raw_text)
+    
+    # Inject prepass replacements if available
+    instruction_to_use = INSTRUCTION
+    if chunk_replacements:
+        from prepass import inject_prepass_into_grammar_prompt
+        instruction_to_use = inject_prepass_into_grammar_prompt(INSTRUCTION, chunk_replacements)
+    
     sp = Spinner("Contacting LLM") if show_spinner else None
     if sp: sp.start()
     try:
-        resp = call_lmstudio(api_base, model, INSTRUCTION, masked)
+        resp = call_lmstudio(api_base, model, instruction_to_use, masked)
     finally:
         if sp: sp.stop(clear_line=True)
     corrected = extract_between_sentinels(resp)
@@ -155,7 +169,7 @@ def process_file(in_path: Path, out_path: Path, api_base, model,
                  chunk_chars: int, dry_run: bool,
                  show_progress: bool, progress_width: int,
                  stream: bool, preview_chars: int,
-                 resume: bool, force: bool, fsync_each: bool):
+                 resume: bool, force: bool, fsync_each: bool, prepass_report=None):
 
     original = load_markdown(in_path)
     chunks = chunk_paragraphs(original, chunk_chars)
@@ -191,14 +205,30 @@ def process_file(in_path: Path, out_path: Path, api_base, model,
     if show_progress:
         print_progress(processed_text_so_far, total_text, width=progress_width, prefix="Progress ")
 
+    # Extract replacement mappings from prepass report if available
+    chunk_replacements_map = {}
+    if prepass_report:
+        for chunk_data in prepass_report.get('chunks', []):
+            chunk_id = chunk_data.get('id', 1)
+            replacements = {}
+            for replacement in chunk_data.get('replacements', []):
+                if 'find' in replacement and 'replace' in replacement:
+                    replacements[replacement['find']] = replacement['replace']
+            if replacements:
+                chunk_replacements_map[chunk_id] = replacements
+
     # Open partial and append per chunk
     with open(partial_path, fmode, encoding="utf-8", newline="") as fout:
+        text_chunk_id = 1  # Track text chunks for prepass mapping
         for idx in range(start_index, len(chunks)):
             kind, content = chunks[idx]
             if kind == "code":
                 out = content
             else:
-                out = correct_chunk(api_base, model, content, show_spinner=show_progress)
+                # Get prepass replacements for this text chunk
+                chunk_replacements = chunk_replacements_map.get(text_chunk_id, None)
+                out = correct_chunk(api_base, model, content, show_spinner=show_progress, chunk_replacements=chunk_replacements)
+                text_chunk_id += 1
             # write chunk + newline separator
             fout.write(out)
             fout.write("\n")
@@ -264,11 +294,41 @@ def main():
     ap.add_argument("--resume", action="store_true", help="Resume from a previous partial/checkpoint")
     ap.add_argument("--force", action="store_true", help="Overwrite existing partial/checkpoint")
     ap.add_argument("--fsync", dest="fsync_each", action="store_true", help="fsync after each chunk (safer, slower)")
+    ap.add_argument("--prepass", action="store_true", help="Run prepass TTS problem detection and create report")
+    ap.add_argument("--prepass-report", help="Custom path for prepass report (default: prepass_report.json)")
     args = ap.parse_args()
 
     in_path = Path(args.input)
     if not in_path.exists():
         print(f"Input file not found: {in_path}", file=sys.stderr); sys.exit(1)
+
+    # Handle prepass mode
+    prepass_report = None
+    if args.prepass:
+        from prepass import run_prepass, write_prepass_report
+        report_path = Path(args.prepass_report) if args.prepass_report else Path("prepass_report.json")
+        
+        print(f"Running prepass TTS problem detection on: {in_path}")
+        prepass_report = run_prepass(
+            in_path, 
+            args.api_base, 
+            args.model, 
+            args.chunk_chars,
+            show_progress=(not args.no_progress)
+        )
+        
+        write_prepass_report(prepass_report, report_path)
+        
+        # Print summary
+        unique_count = len(prepass_report['summary']['unique_problem_words'])
+        chunk_count = len(prepass_report['chunks'])
+        print(f"✓ Prepass complete!")
+        print(f"  Report: {report_path}")
+        print(f"  Found: {unique_count} unique problem words in {chunk_count} chunks")
+        if unique_count > 0:
+            print(f"  Sample problems: {', '.join(prepass_report['summary']['unique_problem_words'][:5])}")
+        print("Continuing to grammar correction with prepass integration...")
+        print()
 
     out_path = Path(args.output) if args.output else in_path.with_suffix(".corrected.md")
 
@@ -283,7 +343,7 @@ def main():
         for k,c in chunks:
             if k=="code": out=c
             else:
-                out=correct_chunk(args.api_base, args.model, c, show_spinner=(not args.no_progress))
+                out=correct_chunk(args.api_base, args.model, c, show_spinner=(not args.no_progress), chunk_replacements=None)
                 processed += 1
                 if not args.no_progress: print_progress(processed, total_text, width=args.progress_width, prefix="Progress ")
             out_segments.append(out)
@@ -301,7 +361,8 @@ def main():
             chunk_chars=args.chunk_chars, dry_run=False,
             show_progress=(not args.no_progress), progress_width=args.progress_width,
             stream=args.stream, preview_chars=args.preview_chars,
-            resume=args.resume, force=args.force, fsync_each=args.fsync_each
+            resume=args.resume, force=args.force, fsync_each=args.fsync_each,
+            prepass_report=prepass_report
         )
     except requests.HTTPError as e:
         print("HTTPError from LM Studio:", getattr(e.response, "text", str(e)), file=sys.stderr); sys.exit(2)

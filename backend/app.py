@@ -22,9 +22,12 @@ import uvicorn
 # Import our existing functionality
 import sys
 sys.path.append(str(Path(__file__).parent.parent))
-from md_proof import (print_progress, load_markdown, chunk_paragraphs, DEFAULT_API_BASE, 
+from md_proof import (print_progress, load_markdown, chunk_paragraphs, DEFAULT_API_BASE, DEFAULT_MODEL,
                      INSTRUCTION, mask_urls, unmask_urls, extract_between_sentinels, 
                      call_lmstudio, Spinner, paths_for, write_ckpt, load_ckpt)
+from prepass import (run_prepass, write_prepass_report, load_prepass_report, 
+                    get_replacement_map_for_grammar, inject_prepass_into_grammar_prompt,
+                    get_problem_words_for_grammar, inject_prepass_into_grammar_prompt_legacy)
 
 # Load the high-quality grammar prompt
 GRAMMAR_PROMPT_PATH = Path(__file__).parent.parent / "grammar_promt.txt"
@@ -99,6 +102,14 @@ class ProcessRequest(BaseModel):
     fsync_each: bool = False
     chunk_size: int = 8000
     preview_chars: int = 500
+    use_prepass: bool = False
+    prepass_report: Optional[dict] = None
+
+class PrepassRequest(BaseModel):
+    content: str
+    model_name: Optional[str] = None
+    api_base: Optional[str] = None
+    chunk_size: int = 8000
 
 class Model(BaseModel):
     id: str
@@ -251,6 +262,117 @@ async def upload_file(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to process file: {str(e)}")
 
+@app.post("/api/prepass")
+async def run_prepass_detection(request: PrepassRequest):
+    """Run prepass TTS problem detection on text."""
+    try:
+        # Create temporary file for processing
+        temp_dir = tempfile.gettempdir()
+        temp_file = Path(temp_dir) / f"prepass_{uuid.uuid4()}.md"
+        
+        # Write content to temp file
+        with open(temp_file, 'w', encoding='utf-8') as f:
+            f.write(request.content)
+        
+        try:
+            # Run prepass detection
+            api_base = request.api_base or DEFAULT_API_BASE
+            model = request.model_name or DEFAULT_MODEL
+            
+            report = run_prepass(
+                temp_file,
+                api_base,
+                model,
+                request.chunk_size,
+                show_progress=False
+            )
+            
+            return {
+                "status": "success",
+                "report": report,
+                "summary": {
+                    "unique_problems": len(report['summary']['unique_problem_words']),
+                    "chunks_processed": len(report['chunks']),
+                    "sample_problems": report['summary']['unique_problem_words'][:5]
+                }
+            }
+            
+        finally:
+            # Clean up temp file
+            try:
+                temp_file.unlink()
+            except FileNotFoundError:
+                pass
+                
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Prepass detection failed: {str(e)}")
+
+@app.post("/api/upload-prepass")
+async def upload_prepass_report(file: UploadFile = File(...)):
+    """Upload a prepass report JSON file."""
+    if not file.filename.endswith('.json'):
+        raise HTTPException(status_code=400, detail="File must be a JSON file")
+    
+    try:
+        content = await file.read()
+        report_data = json.loads(content.decode('utf-8'))
+        
+        # Validate basic structure
+        required_keys = ['source', 'created_at', 'chunks', 'summary']
+        if not all(key in report_data for key in required_keys):
+            raise HTTPException(status_code=400, detail="Invalid prepass report format")
+        
+        return {
+            "status": "success",
+            "report": report_data,
+            "summary": {
+                "source": report_data['source'],
+                "unique_problems": len(report_data['summary']['unique_problem_words']),
+                "chunks": len(report_data['chunks']),
+                "created_at": report_data['created_at']
+            }
+        }
+        
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON file")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to process prepass report: {str(e)}")
+
+@app.get("/api/grammar-prompt")
+async def get_grammar_prompt():
+    """Get the current grammar prompt from file."""
+    return {
+        "prompt": GRAMMAR_PROMPT,
+        "source": "grammar_promt.txt" if GRAMMAR_PROMPT_PATH.exists() else "built-in"
+    }
+
+@app.post("/api/grammar-prompt")
+async def save_grammar_prompt(request: dict):
+    """Save grammar prompt to file."""
+    try:
+        new_prompt = request.get("prompt", "").strip()
+        if not new_prompt:
+            raise HTTPException(status_code=400, detail="Prompt cannot be empty")
+        
+        # Save to file
+        with open(GRAMMAR_PROMPT_PATH, 'w', encoding='utf-8') as f:
+            f.write(new_prompt)
+        
+        # Update global variable
+        global GRAMMAR_PROMPT
+        GRAMMAR_PROMPT = new_prompt
+        
+        return {
+            "status": "success",
+            "message": "Grammar prompt saved successfully",
+            "source": "grammar_promt.txt"
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save grammar prompt: {str(e)}")
+
 @app.post("/api/process/{client_id}")
 async def process_text(client_id: str, request: ProcessRequest):
     """Start text processing job."""
@@ -339,6 +461,24 @@ async def run_processing_job(job_id: str, request: ProcessRequest):
         api_base = request.api_base or DEFAULT_API_BASE
         model_name = request.model_name or "default"
         prompt_to_use = request.prompt_template if request.prompt_template else GRAMMAR_PROMPT
+        
+        # Inject prepass replacements if enabled
+        if request.use_prepass and request.prepass_report:
+            try:
+                # Try new replacement map format first
+                replacement_map = get_replacement_map_for_grammar(request.prepass_report)
+                if replacement_map:
+                    prompt_to_use = inject_prepass_into_grammar_prompt(prompt_to_use, replacement_map)
+                    print(f"Injected {len(replacement_map)} specific replacements from prepass into grammar prompt")
+                else:
+                    # Fall back to legacy problem words format
+                    problem_words = get_problem_words_for_grammar(request.prepass_report)
+                    if problem_words:
+                        prompt_to_use = inject_prepass_into_grammar_prompt_legacy(prompt_to_use, problem_words)
+                        print(f"Injected {len(problem_words)} problem words from prepass into grammar prompt (legacy)")
+            except Exception as e:
+                print(f"Warning: Failed to inject prepass data: {e}")
+                # Continue with original prompt
         
         fmode = "a" if start_index > 0 else "w"
         

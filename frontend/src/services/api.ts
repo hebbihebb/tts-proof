@@ -20,6 +20,8 @@ export interface ProcessRequest {
   fsync_each?: boolean;
   chunk_size?: number;
   preview_chars?: number;
+  use_prepass?: boolean;
+  prepass_report?: any;
 }
 
 export interface JobStatus {
@@ -86,6 +88,93 @@ class ApiService {
 
     if (!response.ok) {
       throw new Error('Failed to upload file');
+    }
+
+    return await response.json();
+  }
+
+  async runPrepass(request: {
+    content: string;
+    model_name?: string;
+    api_base?: string;
+    chunk_size?: number;
+  }): Promise<{
+    status: string;
+    report: any;
+    summary: {
+      unique_problems: number;
+      chunks_processed: number;
+      sample_problems: string[];
+    };
+  }> {
+    const response = await fetch(`${API_BASE_URL}/prepass`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to run prepass detection');
+    }
+
+    return await response.json();
+  }
+
+  async uploadPrepassReport(file: File): Promise<{
+    status: string;
+    report: any;
+    summary: {
+      source: string;
+      unique_problems: number;
+      chunks: number;
+      created_at: string;
+    };
+  }> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${API_BASE_URL}/upload-prepass`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to upload prepass report');
+    }
+
+    return await response.json();
+  }
+
+  async getGrammarPrompt(): Promise<{
+    prompt: string;
+    source: string;
+  }> {
+    const response = await fetch(`${API_BASE_URL}/grammar-prompt`);
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch grammar prompt');
+    }
+
+    return await response.json();
+  }
+
+  async saveGrammarPrompt(prompt: string): Promise<{
+    status: string;
+    message: string;
+    source: string;
+  }> {
+    const response = await fetch(`${API_BASE_URL}/grammar-prompt`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ prompt }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to save grammar prompt');
     }
 
     return await response.json();
