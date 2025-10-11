@@ -272,9 +272,9 @@ const AppContent = () => {
     addLog('Processed text saved to file', 'success');
   };
   return <div className={`min-h-screen w-full transition-colors duration-300 ${isDarkMode ? 'dark bg-catppuccin-base text-catppuccin-text' : 'bg-light-base text-light-text'}`}>
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
+      <div className="container mx-auto px-4 py-6 max-w-[1600px]">
         {/* Header */}
-        <header className="flex justify-between items-center mb-8">
+        <header className="flex justify-between items-center mb-6">
           <div className="flex items-center">
             <div className="w-10 h-10 bg-gradient-to-br from-catppuccin-mauve to-catppuccin-blue rounded-lg flex items-center justify-center shadow-lg mr-4">
               <span className="text-white font-bold text-lg">TP</span>
@@ -291,120 +291,124 @@ const AppContent = () => {
           <ThemeToggle />
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left column - Controls */}
-          <div className="lg:col-span-1 space-y-6">
-            <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-6 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0">
-              <h2 className="text-xl font-semibold mb-4 text-light-text dark:text-catppuccin-text">
-                File Selection
-              </h2>
-              <FileSelector onFileSelect={handleFileSelect} />
-            </section>
-
-            <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-6 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0">
-              <h2 className="text-xl font-semibold mb-4 text-light-text dark:text-catppuccin-text">
-                Model Selection
-              </h2>
-              <ModelPicker 
-                onModelSelect={setSelectedModelId} 
-                onEndpointChange={setCurrentEndpoint}
-                currentEndpoint={currentEndpoint}
-              />
-            </section>
-
+        {/* Main control grid - 2 rows x 3 columns */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          {/* Row 1: File Selection */}
+          <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-4 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0">
+            <h2 className="text-lg font-semibold mb-3 text-light-text dark:text-catppuccin-text">
+              File Selection
+            </h2>
+            <FileSelector onFileSelect={handleFileSelect} />
             {/* File Analysis - Show when file is selected */}
             {file && originalText && (
-              <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-6 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0">
+              <div className="mt-4">
                 <FileAnalysis 
                   totalCharacters={originalText.length}
                   estimatedChunks={calculateEstimatedChunks(originalText, chunkSize)}
                   fileName={file.name}
                 />
-              </section>
+              </div>
             )}
+          </section>
 
-            {/* Chunk Size Control */}
-            <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-6 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0">
-              <ChunkSizeControl 
-                chunkSize={chunkSize}
-                onChunkSizeChange={setChunkSize}
-                disabled={isProcessing}
-              />
-            </section>
+          {/* Row 1: Model Selection */}
+          <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-4 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0">
+            <h2 className="text-lg font-semibold mb-3 text-light-text dark:text-catppuccin-text">
+              Model Selection
+            </h2>
+            <ModelPicker 
+              onModelSelect={setSelectedModelId} 
+              onEndpointChange={setCurrentEndpoint}
+              currentEndpoint={currentEndpoint}
+            />
+          </section>
 
-            {/* Prepass Control */}
-            <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-6 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0">
-              <h2 className="text-xl font-semibold mb-4 text-light-text dark:text-catppuccin-text">
-                TTS Prepass Detection
+          {/* Row 1: Chunk Size Control */}
+          <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-4 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0">
+            <ChunkSizeControl 
+              chunkSize={chunkSize}
+              onChunkSizeChange={setChunkSize}
+              disabled={isProcessing}
+            />
+          </section>
+
+          {/* Row 2: Prepass Control */}
+          <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-4 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0">
+            <h2 className="text-lg font-semibold mb-3 text-light-text dark:text-catppuccin-text">
+              TTS Prepass Detection
+            </h2>
+            <PrepassControl
+              onPrepassComplete={(report) => {
+                setPrepassReport(report);
+                setUsePrepass(true); // Auto-select the checkbox when prepass completes
+              }}
+              onPrepassClear={() => setPrepassReport(null)}
+              prepassReport={prepassReport}
+              usePrepass={usePrepass}
+              onUsePrepassChange={setUsePrepass}
+              isRunningPrepass={isRunningPrepass}
+              onRunningPrepassChange={setIsRunningPrepass}
+              content={originalText}
+              modelId={selectedModelId}
+              endpoint={currentEndpoint}
+              chunkSize={chunkSize}
+              onLog={addLog}
+            />
+          </section>
+
+          {/* Row 2: Prompt Template */}
+          <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-4 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0">
+            <div className="flex justify-between items-center mb-3">
+              <h2 className="text-lg font-semibold text-light-text dark:text-catppuccin-text">
+                Prompt Template
               </h2>
-              <PrepassControl
-                onPrepassComplete={setPrepassReport}
-                onPrepassClear={() => setPrepassReport(null)}
-                prepassReport={prepassReport}
-                usePrepass={usePrepass}
-                onUsePrepassChange={setUsePrepass}
-                isRunningPrepass={isRunningPrepass}
-                onRunningPrepassChange={setIsRunningPrepass}
-                content={originalText}
-                modelId={selectedModelId}
-                endpoint={currentEndpoint}
-                chunkSize={chunkSize}
-                onLog={addLog}
-              />
-            </section>
+              <Button variant="outline" size="sm" icon={<EditIcon className="w-4 h-4" />} onClick={() => setIsPromptEditorOpen(true)}>
+                Edit
+              </Button>
+            </div>
+            <div className="bg-light-crust dark:bg-catppuccin-crust p-3 rounded-lg border border-light-surface1 dark:border-catppuccin-surface1">
+              <pre className="text-sm text-light-subtext1 dark:text-catppuccin-subtext1 whitespace-pre-wrap">
+                {prompt.length > 150 ? `${prompt.substring(0, 150)}...` : prompt}
+              </pre>
+            </div>
+          </section>
 
-            <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-6 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold text-light-text dark:text-catppuccin-text">
-                  Prompt Template
-                </h2>
-                <Button variant="outline" size="sm" icon={<EditIcon className="w-4 h-4" />} onClick={() => setIsPromptEditorOpen(true)}>
-                  Edit
-                </Button>
-              </div>
-              <div className="bg-light-crust dark:bg-catppuccin-crust p-3 rounded-lg border border-light-surface1 dark:border-catppuccin-surface1">
-                <pre className="text-sm text-light-subtext1 dark:text-catppuccin-subtext1 whitespace-pre-wrap">
-                  {prompt.length > 150 ? `${prompt.substring(0, 150)}...` : prompt}
-                </pre>
-              </div>
-            </section>
+          {/* Row 2: Processing */}
+          <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-4 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0">
+            <h2 className="text-lg font-semibold mb-3 text-light-text dark:text-catppuccin-text">
+              Processing
+            </h2>
+            <ProgressBar progress={progress} status={status} isProcessing={isProcessing} />
+            <div className="mt-3 flex space-x-3">
+              <Button onClick={handleProcess} disabled={!file || isProcessing} isLoading={isProcessing} icon={<PlayIcon className="w-4 h-4" />} className="flex-1">
+                Process Text
+              </Button>
+              <Button variant="outline" onClick={handleSaveProcessedText} disabled={!processedText} icon={<SaveIcon className="w-4 h-4" />} className="flex-1">
+                Save Result
+              </Button>
+            </div>
+          </section>
+        </div>
 
-            <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-6 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0">
-              <h2 className="text-xl font-semibold mb-4 text-light-text dark:text-catppuccin-text">
-                Processing
-              </h2>
-              <ProgressBar progress={progress} status={status} isProcessing={isProcessing} />
-              <div className="mt-4 flex space-x-3">
-                <Button onClick={handleProcess} disabled={!file || isProcessing} isLoading={isProcessing} icon={<PlayIcon className="w-4 h-4" />} className="flex-1">
-                  Process Text
-                </Button>
-                <Button variant="outline" onClick={handleSaveProcessedText} disabled={!processedText} icon={<SaveIcon className="w-4 h-4" />} className="flex-1">
-                  Save Result
-                </Button>
-              </div>
-            </section>
-          </div>
+        {/* Bottom section - Preview and Logs */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(100vh-28rem)]">
+          <section>
+            <h2 className="text-lg font-semibold mb-3 text-light-text dark:text-catppuccin-text">
+              Text Preview
+            </h2>
+            <div className="h-[calc(100%-2rem)]">
+              <PreviewWindow originalText={originalText} processedText={processedText} onDelete={handleClearPreview} />
+            </div>
+          </section>
 
-          {/* Right column - Preview and Logs */}
-          <div className="lg:col-span-2 grid grid-rows-2 gap-6 h-[calc(100vh-10rem)]">
-            <section className="row-span-1">
-              <h2 className="text-xl font-semibold mb-4 text-light-text dark:text-catppuccin-text">
-                Text Preview
-              </h2>
-              <div className="h-[calc(100%-2.5rem)]">
-                <PreviewWindow originalText={originalText} processedText={processedText} onDelete={handleClearPreview} />
-              </div>
-            </section>
-
-            <section className="row-span-1">
-              <h2 className="text-xl font-semibold mb-4 text-light-text dark:text-catppuccin-text">
-                Process Log
-              </h2>
-              <div className="h-[calc(100%-2.5rem)]">
-                <LogArea logs={logs} />
-              </div>
-            </section>
-          </div>
+          <section>
+            <h2 className="text-lg font-semibold mb-3 text-light-text dark:text-catppuccin-text">
+              Process Log
+            </h2>
+            <div className="h-[calc(100%-2rem)]">
+              <LogArea logs={logs} />
+            </div>
+          </section>
         </div>
       </div>
 

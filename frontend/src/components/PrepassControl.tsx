@@ -195,10 +195,12 @@ export const PrepassControl: React.FC<PrepassControlProps> = ({
             <FileText className="h-3 w-3" />
             <span className="font-medium">Prepass Report Summary</span>
           </div>
-          <div>Source: {prepassReport.source}</div>
-          <div>Problems: {prepassReport.summary?.unique_problem_words?.length || 0}</div>
-          <div>Chunks: {prepassReport.chunks?.length || 0}</div>
-          <div>Created: {new Date(prepassReport.created_at).toLocaleString()}</div>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+            <div>Source: {prepassReport.source.substring(0, 20)}...</div>
+            <div>Problems: {prepassReport.summary?.unique_problem_words?.length || 0}</div>
+            <div>Chunks: {prepassReport.chunks?.length || 0}</div>
+            <div>Created: {new Date(prepassReport.created_at).toLocaleString()}</div>
+          </div>
         </div>
       )}
     </div>

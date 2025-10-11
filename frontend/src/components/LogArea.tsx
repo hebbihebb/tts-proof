@@ -31,12 +31,12 @@ export const LogArea: React.FC<LogAreaProps> = ({
     }
   };
   return <div className="w-full h-full bg-light-mantle dark:bg-catppuccin-mantle border border-light-surface0 dark:border-catppuccin-surface0 rounded-lg overflow-hidden">
-      <div className="p-2 bg-light-crust dark:bg-catppuccin-crust border-b border-light-surface0 dark:border-catppuccin-surface0">
+      <div className="px-2 py-1.5 bg-light-crust dark:bg-catppuccin-crust border-b border-light-surface0 dark:border-catppuccin-surface0">
         <h3 className="text-sm font-medium text-light-text dark:text-catppuccin-text">
           Process Log
         </h3>
       </div>
-      <div className="p-3 h-[calc(100%-32px)] overflow-y-auto font-mono text-sm">
+      <div className="p-2 h-[calc(100%-30px)] overflow-y-auto font-mono text-sm">
         {logs.length === 0 ? <p className="text-light-subtext1 dark:text-catppuccin-subtext1 italic">
             No logs yet. Start processing to see output here.
           </p> : logs.map(log => <div key={log.id} className="mb-1.5">

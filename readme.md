@@ -2,23 +2,31 @@
 
 ## Overview
 
-A modern web-based application for batch grammar and spelling correction of Markdown files using **local LLM** servers (LM Studio). Features a beautiful React frontend with real-time progress tracking and a robust FastAPI backend that preserves all original processing capabilities.
+A modern web-based application for batch grammar and spelling correction of Markdown files using **local LLM** servers (LM Studio). Features a beautiful React frontend with optimized layout, real-time progress tracking, and a robust FastAPI backend that preserves all original processing capabilities.
+
+## 📸 Interface Preview
+
+![TTS-Proof Web Interface](screenshot-web-interface.png)
+
+*Modern 6-section grid layout optimized for wide displays: organized workflow from file selection to processing, with preview and logs at the bottom.*
 
 ---
 
 ## ✨ Features
 
 ### 🎨 Modern Web Interface
-- **React + TypeScript frontend** with Tailwind CSS styling
+- **Optimized 6-section grid layout** perfect for 4K displays and wide screens
+- **Logical workflow organization** - file setup → model config → processing controls
+- **React + TypeScript frontend** with Tailwind CSS styling  
 - **Real-time progress updates** via WebSocket connections
 - **Dark/Light theme toggle** for comfortable use
-- **Responsive design** that works on any screen size
-- **Drag & drop file uploads** with instant preview
+- **Drag & drop file uploads** with instant preview and file analysis
 
 ### 🔧 Powerful Processing Engine
+- **TTS Prepass Detection** with auto-selection for grammar correction workflow
 - **Flexible LLM server support** with configurable endpoints (LM Studio, KoboldCpp, Oobabooga, TabbyAPI, etc.)
 - **Network-ready** - connect to local or remote servers on your network
-- **Intelligent chunking** (8000 chars) with progress tracking
+- **Intelligent chunking** with configurable sizes and progress tracking
 - **Crash-safe processing** with automatic checkpointing and resume
 - **Markdown structure preservation** (headings, lists, links, code blocks)
 - **URL masking** and code-block protection during processing
@@ -123,20 +131,23 @@ Choose the launcher that works best for your system!
 
 ## 🎯 How to Use
 
-1. **Connect**: The app automatically connects to your LM Studio server
-2. **Upload**: Drag & drop or select your Markdown file
-3. **Configure**: Choose your model and edit prompts if needed
-4. **Process**: Click "Send for Processing" and watch real-time progress
-5. **Download**: Get your corrected text when processing completes
+### Streamlined 6-Section Workflow:
 
----
+**Top Row - Setup:**
+1. **File Selection**: Drag & drop your Markdown file with instant analysis
+2. **Model Selection**: Choose your LLM model and configure endpoints
+3. **Chunk Size**: Set optimal processing chunk size (4K-16K chars)
 
-## 📸 Screenshots
+**Bottom Row - Processing:**
+4. **TTS Prepass**: Run detection for TTS-problematic words (auto-selects for correction)
+5. **Prompt Template**: Customize grammar correction instructions
+6. **Processing**: Execute with real-time progress tracking
 
-### Modern Web Interface
-![TTS-Proof Web Interface](screenshot-web-interface.png)
+**Preview & Logs**: Monitor results and processing details at the bottom
 
-*The new React-based interface showing file upload, real-time processing progress, and side-by-side text preview with dark theme.*
+### Quick Steps:
+1. **Upload** your file → **Select** model → **Process** → **Download** results
+2. Optional: Run **TTS Prepass** for enhanced correction of speech-problematic text
 
 ---
 
@@ -162,10 +173,11 @@ Choose the launcher that works best for your system!
 - File upload handling and temporary file management
 
 ### Frontend Features
-- React 18 with TypeScript
-- Tailwind CSS for modern styling
-- Real-time WebSocket communication
-- Theme switching and responsive design
+- React 18 with TypeScript and optimized 6-section grid layout
+- Tailwind CSS for modern styling with 4K display optimization
+- Real-time WebSocket communication with live progress updates
+- TTS Prepass integration with auto-selection workflow
+- Theme switching and responsive design for all screen sizes
 
 ---
 

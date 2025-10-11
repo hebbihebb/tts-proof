@@ -19,7 +19,7 @@ export const ProgressBar = ({
           {progress}%
         </span>
       </div>
-      <div className="w-full bg-light-surface1 dark:bg-catppuccin-surface1 rounded-full h-3 overflow-hidden shadow-inner">
+      <div className="w-full bg-light-surface1 dark:bg-catppuccin-surface1 rounded-full h-2.5 overflow-hidden shadow-inner">
         <div 
           className={`h-full rounded-full transition-all duration-500 ${
             isProcessing 
