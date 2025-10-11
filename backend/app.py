@@ -266,6 +266,14 @@ async def run_prepass_with_websocket(input_path: Path, api_base: str, model: str
     
     return report
 
+# Load the prepass prompt from file
+PREPASS_PROMPT_PATH = Path(__file__).parent.parent / "prepass_prompt.txt"
+if PREPASS_PROMPT_PATH.exists():
+    with open(PREPASS_PROMPT_PATH, encoding="utf-8") as f:
+        PREPASS_PROMPT = f.read().strip()
+else:
+    PREPASS_PROMPT = "" # Fallback to empty if not found, prepass.py has its own default
+
 # Pydantic models
 class ProcessRequest(BaseModel):
     content: str
@@ -582,6 +590,39 @@ async def save_grammar_prompt(request: dict):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save grammar prompt: {str(e)}")
 
+@app.get("/api/prepass-prompt")
+async def get_prepass_prompt():
+    """Get the current prepass prompt from file."""
+    return {
+        "prompt": PREPASS_PROMPT,
+        "source": "prepass_prompt.txt" if PREPASS_PROMPT_PATH.exists() else "built-in"
+    }
+
+@app.post("/api/prepass-prompt")
+async def save_prepass_prompt(request: dict):
+    """Save prepass prompt to file."""
+    try:
+        new_prompt = request.get("prompt", "").strip()
+        if not new_prompt:
+            raise HTTPException(status_code=400, detail="Prompt cannot be empty")
+
+        # Save to file
+        with open(PREPASS_PROMPT_PATH, 'w', encoding='utf-8') as f:
+            f.write(new_prompt)
+
+        # Update global variable
+        global PREPASS_PROMPT
+        PREPASS_PROMPT = new_prompt
+
+        return {
+            "status": "success",
+            "message": "Prepass prompt saved successfully",
+            "source": "prepass_prompt.txt"
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save prepass prompt: {str(e)}")
+
 @app.post("/api/process/{client_id}")
 async def process_text(client_id: str, request: ProcessRequest):
     """Start text processing job."""
@@ -736,21 +777,15 @@ async def run_processing_job(job_id: str, request: ProcessRequest):
                         processed_text_so_far += 1
                         processing_jobs[job_id]["processed_chunks"] = processed_text_so_far
                         
-                        # Create chunk preview (limit content for UI)
+                        # Create chunk preview, sending full content for real-time preview
                         chunk_preview = ChunkPreview(
                             chunk_index=idx,
                             chunk_type=chunk_type,
-                            original_content=chunk_content[:500] + "..." if len(chunk_content) > 500 else chunk_content,
-                            processed_content=corrected[:500] + "..." if len(corrected) > 500 else corrected,
+                            original_content=chunk_content,
+                            processed_content=corrected, # Send full corrected chunk
                             character_count=len(corrected),
                             is_complete=True
                         )
-                        
-                        # Store only last 5 chunks to prevent memory issues
-                        result_chunks = processing_jobs[job_id]["result_chunks"]
-                        result_chunks.append(chunk_preview.dict())
-                        if len(result_chunks) > 5:
-                            result_chunks.pop(0)
                         
                         # Send chunk completion
                         progress = int((processed_text_so_far / total_text_chunks) * 100)
@@ -782,6 +817,24 @@ async def run_processing_job(job_id: str, request: ProcessRequest):
                     fout.write(chunk_content)
                     fout.write("\n")
                     fout.flush()
+
+                    # Send non-text chunk to frontend for real-time preview
+                    chunk_preview = ChunkPreview(
+                        chunk_index=idx,
+                        chunk_type=chunk_type,
+                        original_content=chunk_content,
+                        processed_content=chunk_content, # Content is unchanged
+                        character_count=len(chunk_content),
+                        is_complete=True
+                    )
+                    await manager.send_message(job_id, {
+                        "type": "chunk_complete",
+                        "progress": int((processed_text_so_far / total_text_chunks) * 100) if total_text_chunks > 0 else 0,
+                        "message": f"Passing through non-text chunk {idx + 1}/{len(chunks)}",
+                        "chunk": chunk_preview.dict(),
+                        "chunks_processed": processed_text_so_far,
+                        "total_chunks": total_text_chunks
+                    })
                 
                 # Update checkpoint
                 ck = {
@@ -905,6 +958,11 @@ async def cancel_job(job_id: str):
         return {"message": "Job cancelled"}
     
     return {"message": f"Job is {job['status']}, cannot cancel"}
+
+@app.get("/api/temp-directory")
+async def get_temp_directory():
+    """Get the path of the temporary directory."""
+    return {"path": tempfile.gettempdir()}
 
 @app.post("/api/prepass/cancel")
 async def cancel_prepass(request: dict):

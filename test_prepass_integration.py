@@ -46,14 +46,14 @@ class TestPrepassIntegration(unittest.TestCase):
     def test_inject_prepass_into_grammar_prompt(self):
         """Test injection of prepass words into grammar prompt."""
         base_prompt = "You are a grammar assistant."
-        problem_words = ["F ʟ ᴀ s ʜ", "T E S T"]
+        replacement_map = {"F ʟ ᴀ s ʜ": "Flash", "T E S T": "TEST"}
         
-        injected = inject_prepass_into_grammar_prompt(base_prompt, problem_words)
+        injected = inject_prepass_into_grammar_prompt(base_prompt, replacement_map)
         
         self.assertIn(base_prompt, injected)
-        self.assertIn("F ʟ ᴀ s ʜ", injected)
-        self.assertIn("T E S T", injected)
-        self.assertIn("hard for TTS", injected)
+        self.assertIn('"F ʟ ᴀ s ʜ" → "Flash"', injected)
+        self.assertIn('"T E S T" → "TEST"', injected)
+        self.assertIn("PREPASS REPLACEMENTS", injected)
     
     def test_inject_prepass_into_grammar_prompt_empty_list(self):
         """Test that empty problem list returns original prompt."""
@@ -110,8 +110,8 @@ class TestPrepassIntegration(unittest.TestCase):
             result1 = correct_chunk_with_prompt("http://test", "model", test_text, base_prompt)
             
             # Test with injection
-            problem_words = ["F ʟ ᴀ s ʜ"]
-            injected_prompt = inject_prepass_into_grammar_prompt(base_prompt, problem_words)
+            replacement_map = {"F ʟ ᴀ s ʜ": "Flash"}
+            injected_prompt = inject_prepass_into_grammar_prompt(base_prompt, replacement_map)
             result2 = correct_chunk_with_prompt("http://test", "model", test_text, injected_prompt)
             
             # Both should return the mocked result
@@ -127,8 +127,8 @@ class TestPrepassIntegration(unittest.TestCase):
             prompt_used_2 = calls[1][0][2]
             
             self.assertEqual(prompt_used_1, base_prompt)
-            self.assertIn("F ʟ ᴀ s ʜ", prompt_used_2)
-            self.assertIn("hard for TTS", prompt_used_2)
+            self.assertIn('"F ʟ ᴀ s ʜ" → "Flash"', prompt_used_2)
+            self.assertIn("PREPASS REPLACEMENTS", prompt_used_2)
 
 
 if __name__ == '__main__':
