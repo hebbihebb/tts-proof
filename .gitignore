@@ -36,16 +36,44 @@ logs/
 # Runtime files
 *.partial
 *.corrected.md
+*.ckpt.json
 
-# Temporary files
+# Prepass reports and test files
+prepass_report.json
+test_prepass_*.json
+*_prepass.json
+
+# Temporary processing files
 temp/
 tmp/
 *.tmp
+input_*.md
+output_*.md
+prepass_*.md
 
 # Node modules (already in frontend/.gitignore but good to have)
 node_modules/
 dist/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
 
 # Build artifacts
 build/
 *.egg-info/
+
+# Frontend specific (redundant with frontend/.gitignore but ensures coverage)
+frontend/dist/
+frontend/node_modules/
+frontend/.vite/
+
+# Test outputs and generated files
+test_input.corrected.md
+webui_test.corrected.md
+*_test.corrected.md
+
+# Coverage reports
+coverage/
+.coverage
+htmlcov/
+.pytest_cache/

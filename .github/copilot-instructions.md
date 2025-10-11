@@ -7,7 +7,7 @@ TTS-Proof is a **local-first** grammar correction tool with a React/TypeScript f
 ### Key Components
 
 - **Backend** (`backend/app.py`): FastAPI server with WebSocket support, imports core logic from `md_proof.py`
-- **Frontend** (`frontend/src/`): React + TypeScript + Tailwind, uses Vite for dev server
+- **Frontend** (`frontend/src/`): React + TypeScript + Tailwind, uses Vite for dev server (6-section grid layout)
 - **Core Engine** (`md_proof.py`): Standalone CLI tool with chunking, checkpointing, and LM Studio integration
 - **Prepass Engine** (`prepass.py`): TTS problem detector that finds stylized text patterns before grammar correction
 - **Launcher** (`launch.py`): Cross-platform script that starts both frontend and backend servers
@@ -38,17 +38,21 @@ final = unmask_urls(corrected, urls)
 
 ### 3. WebSocket Communication
 
-- Client generates random `clientId` for connection tracking
-- Backend uses `ConnectionManager` singleton for WebSocket state
+- Client generates random `clientId` for connection tracking (`Math.random().toString(36).substring(7)`)
+- Backend uses `ConnectionManager` singleton for WebSocket state management
 - Message types: `progress`, `completed`, `error`, `chunk_complete`, `paused`
+- **Message sources**: `prepass` vs `grammar` to differentiate processing stages
+- **Connection pattern**: `/ws/{client_id}` endpoint, auto-cleanup on disconnect
 - **Always** include progress percentage and descriptive messages
 
 ### 4. TTS Prepass Detection
 
 - **Two-stage processing**: Optional prepass detects TTS problems before grammar correction
 - **Pattern detection**: Finds stylized text (`F ʟ ᴀ s ʜ` → `Flash`), hyphenated letters (`U-N-I-T-E-D` → `United`)
+- **WebSocket streaming**: Real-time progress via `run_prepass_with_websocket()` with job cancellation
 - **Report integration**: Prepass results injected into grammar prompt via `inject_prepass_into_grammar_prompt()`
 - **Frontend control**: `PrepassControl.tsx` component manages prepass workflow with visual feedback
+- **Job tracking**: Global `prepass_jobs` dict for cancellation and status management
 
 ### 5. File Handling Conventions
 
@@ -106,6 +110,7 @@ cd frontend && npm run dev
 - **Progress**: Real-time updates via WebSocket, not polling
 - **Modal patterns**: Edit buttons open configuration popups (see `EndpointConfig.tsx`)
 - **Persistence**: UI state saved to localStorage (endpoints, themes, etc.)
+- **6-section grid layout**: Optimized for wide displays with logical workflow organization
 
 ### Backend API Design
 
@@ -120,14 +125,13 @@ cd frontend && npm run dev
 - Server **must** be running before starting backend
 - Model validation happens at runtime (graceful fallback to defaults)
 - Grammar prompt customization through `grammar_promt.txt` file
+- **Network support**: Can connect to remote servers on same network
 
 ### Cross-Platform Considerations
 
 - Use `pathlib.Path` for file operations
 - PowerShell/Bash scripts for Windows/Unix launcher alternatives
 - WebSocket connections work across all platforms
-
-## Common Gotchas
 
 ## Common Gotchas
 
