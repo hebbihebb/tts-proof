@@ -271,8 +271,8 @@ const AppContent = () => {
     URL.revokeObjectURL(url);
     addLog('Processed text saved to file', 'success');
   };
-  return <div className={`min-h-screen w-full transition-colors duration-300 ${isDarkMode ? 'dark bg-catppuccin-base text-catppuccin-text' : 'bg-light-base text-light-text'}`}>
-      <div className="container mx-auto px-4 py-6 max-w-[1600px]">
+  return <div className={`min-h-screen h-full w-full transition-colors duration-300 ${isDarkMode ? 'dark bg-catppuccin-base text-catppuccin-text' : 'bg-light-base text-light-text'}`}>
+      <div className="container mx-auto px-4 py-6 max-w-[1600px] pb-12">
         {/* Header */}
         <header className="flex justify-between items-center mb-6">
           <div className="flex items-center">
@@ -391,12 +391,12 @@ const AppContent = () => {
         </div>
 
         {/* Bottom section - Preview and Logs */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(100vh-28rem)]">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <section>
             <h2 className="text-lg font-semibold mb-3 text-light-text dark:text-catppuccin-text">
               Text Preview
             </h2>
-            <div className="h-[calc(100%-2rem)]">
+            <div className="h-80 sm:h-96 lg:h-[28rem] max-h-[32rem]">
               <PreviewWindow originalText={originalText} processedText={processedText} onDelete={handleClearPreview} />
             </div>
           </section>
@@ -405,7 +405,7 @@ const AppContent = () => {
             <h2 className="text-lg font-semibold mb-3 text-light-text dark:text-catppuccin-text">
               Process Log
             </h2>
-            <div className="h-[calc(100%-2rem)]">
+            <div className="h-80 sm:h-96 lg:h-[28rem] max-h-[32rem]">
               <LogArea logs={logs} />
             </div>
           </section>

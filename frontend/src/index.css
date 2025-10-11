@@ -6,6 +6,19 @@
 
 /* Catppuccin Macchiato Theme Enhancements */
 @layer base {
+  /* Global background styling for html and body */
+  html {
+    @apply h-full;
+  }
+  
+  body {
+    @apply h-full bg-light-base dark:bg-catppuccin-base transition-colors duration-300;
+  }
+  
+  #root {
+    @apply h-full;
+  }
+  
   /* Smooth transitions for theme switching */
   * {
     @apply transition-colors duration-300;
