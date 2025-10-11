@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { XIcon, SaveIcon } from 'lucide-react';
 import { apiService } from '../services/api';
 
@@ -20,6 +20,11 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
 }) => {
   const [prompt, setPrompt] = useState<string>(initialPrompt);
   const [isSaving, setIsSaving] = useState<boolean>(false);
+  
+  // Update internal state when initialPrompt changes
+  useEffect(() => {
+    setPrompt(initialPrompt);
+  }, [initialPrompt]);
   
   const handleSave = async () => {
     setIsSaving(true);

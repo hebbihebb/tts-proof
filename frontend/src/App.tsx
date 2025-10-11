@@ -101,6 +101,21 @@ const AppContent = () => {
         addLog(`Loaded prepass prompt from ${prepassData.source}`, 'info');
       } catch (error) {
         console.error('Failed to load prepass prompt:', error);
+        // Set fallback prompt that matches the default in prepass.py
+        const fallbackPrompt = `You are a TTS preprocessing detector. Find problematic patterns and suggest specific replacements.
+
+Analyze the text and return JSON with problem words AND their recommended TTS-friendly replacements:
+- Stylized/spaced letters: "F ʟ ᴀ s ʜ" → "Flash"
+- Hyphenated letters: "U-N-I-T-E-D" → "United" 
+- ALL-CAPS titles: "REALLY LONG TITLE" → "Really Long Title"
+- Underscore caps: "WEIRD_CAPS_THING" → "Weird Caps Thing"
+- Bracket stylized: "[M ᴇ ɢ ᴀ B ᴜ s ᴛ ᴇ ʀ]" → "[Mega Buster]"
+
+Skip valid acronyms (NASA, GPU, API, etc.) and preserve code blocks.
+
+Return JSON only:
+{ "replacements": [ { "find": "<exact_text>", "replace": "<tts_friendly_version>", "reason": "<why>" } ] }`;
+        setPrepassPrompt(fallbackPrompt);
         addLog('Using fallback prepass prompt', 'warning');
       }
     };
