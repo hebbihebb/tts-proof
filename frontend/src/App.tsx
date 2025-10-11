@@ -283,9 +283,14 @@ const AppContent = () => {
               <h1 className="text-3xl font-bold text-light-text dark:text-catppuccin-text">
                 TTS-Proof
               </h1>
-              <span className="px-2.5 py-1 bg-catppuccin-lavender/20 dark:bg-catppuccin-lavender/10 text-catppuccin-lavender dark:text-catppuccin-lavender text-xs font-medium rounded-full ml-2">
-                v2.1.0
-              </span>
+              <div className="flex items-center gap-2 ml-2">
+                <span className="px-2.5 py-1 bg-catppuccin-lavender/20 dark:bg-catppuccin-lavender/10 text-catppuccin-lavender dark:text-catppuccin-lavender text-xs font-medium rounded-full">
+                  v2.2.0
+                </span>
+                <span className="px-2.5 py-1 bg-catppuccin-mauve/20 dark:bg-catppuccin-mauve/10 text-catppuccin-mauve dark:text-catppuccin-mauve text-xs font-medium rounded-full">
+                  "Zoom Master"
+                </span>
+              </div>
             </div>
           </div>
           <ThemeToggle />
