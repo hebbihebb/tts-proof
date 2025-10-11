@@ -11,7 +11,7 @@ import { Button } from './components/Button';
 import { FileAnalysis } from './components/FileAnalysis';
 import { ChunkSizeControl } from './components/ChunkSizeControl';
 import { PrepassControl } from './components/PrepassControl';
-import { EditIcon, PlayIcon, SaveIcon, Square, FolderIcon } from 'lucide-react';
+import { EditIcon, PlayIcon, SaveIcon, Square, FolderIcon, FlaskConical } from 'lucide-react';
 import { apiService, WebSocketMessage } from './services/api';
 // Fallback prompt if API fails to load
 const FALLBACK_PROMPT = `You are a grammar and spelling corrector for Markdown text.
@@ -75,6 +75,7 @@ const AppContent = () => {
   const [prepassStatus, setPrepassStatus] = useState<string>('');
   const [prepassChunksProcessed, setPrepassChunksProcessed] = useState<number>(0);
   const [prepassTotalChunks, setPrepassTotalChunks] = useState<number>(0);
+  const [isRunningTest, setIsRunningTest] = useState<boolean>(false);
 
   // Calculate estimated chunks based on text length and chunk size
   const calculateEstimatedChunks = (text: string, size: number) => {
@@ -102,9 +103,9 @@ const AppContent = () => {
       } catch (error) {
         console.error('Failed to load prepass prompt:', error);
         // Set fallback prompt that matches the default in prepass.py
-        const fallbackPrompt = `You are a TTS preprocessing detector. Find problematic patterns and suggest specific replacements.
+        const fallbackPrompt = `You are a TTS preprocessing detector working with English text. Find problematic patterns and suggest specific English replacements.
 
-Analyze the text and return JSON with problem words AND their recommended TTS-friendly replacements:
+Analyze the text and return JSON with problem words AND their recommended TTS-friendly English replacements:
 - Stylized/spaced letters: "F ʟ ᴀ s ʜ" → "Flash"
 - Hyphenated letters: "U-N-I-T-E-D" → "United" 
 - ALL-CAPS titles: "REALLY LONG TITLE" → "Really Long Title"
@@ -112,6 +113,8 @@ Analyze the text and return JSON with problem words AND their recommended TTS-fr
 - Bracket stylized: "[M ᴇ ɢ ᴀ B ᴜ s ᴛ ᴇ ʀ]" → "[Mega Buster]"
 
 Skip valid acronyms (NASA, GPU, API, etc.) and preserve code blocks.
+
+IMPORTANT: All replacements must be in standard English. Do not add accents or non-English characters.
 
 Return JSON only:
 { "replacements": [ { "find": "<exact_text>", "replace": "<tts_friendly_version>", "reason": "<why>" } ] }`;
@@ -380,6 +383,44 @@ Return JSON only:
     }
   };
 
+  const handleRunTest = async () => {
+    if (isRunningTest) return;
+    
+    setIsRunningTest(true);
+    addLog('Starting comprehensive test with webui_test.md...', 'info');
+    
+    try {
+      const result = await apiService.runTest({
+        model_name: selectedModelId || undefined,
+        api_base: currentEndpoint,
+        chunk_size: chunkSize
+      });
+      
+      addLog(`Test completed: ${result.message}`, 'success');
+      addLog(`Found ${result.summary.prepass_problems} prepass problems, processed ${result.summary.chunks_processed} chunks`, 'info');
+      
+      if (result.summary.errors > 0) {
+        addLog(`Test had ${result.summary.errors} errors - check test_log.md for details`, 'warning');
+      }
+      
+      // Optionally display the log content in a modal or save it
+      addLog(`Test log saved to: ${result.log_file}`, 'info');
+      
+      // Copy log content to clipboard for easy review
+      try {
+        await navigator.clipboard.writeText(result.log_content);
+        addLog('Test log copied to clipboard', 'info');
+      } catch (clipError) {
+        addLog('Could not copy to clipboard, but log is saved to file', 'warning');
+      }
+      
+    } catch (error) {
+      addLog(`Test failed: ${error}`, 'error');
+    } finally {
+      setIsRunningTest(false);
+    }
+  };
+
   return <div className={`min-h-screen h-full w-full transition-colors duration-300 ${isDarkMode ? 'dark bg-catppuccin-base text-catppuccin-text' : 'bg-light-base text-light-text'}`}>
       <div className="container mx-auto px-4 py-6 max-w-[1600px] pb-12">
         {/* Header */}
@@ -522,6 +563,17 @@ Return JSON only:
                     )}
                     <Button variant="outline" onClick={handleSaveProcessedText} disabled={!processedText} icon={<SaveIcon className="w-4 h-4" />} className="flex-1">
                       Save Result
+                    </Button>
+                  </div>
+                  <div className="mt-3">
+                    <Button 
+                      onClick={handleRunTest} 
+                      disabled={isRunningTest || isProcessing} 
+                      variant="outline" 
+                      icon={<FlaskConical className="w-4 h-4" />} 
+                      className="w-full"
+                    >
+                      {isRunningTest ? 'Running Test...' : 'Run Test (webui_test.md)'}
                     </Button>
                   </div>
                 </div>

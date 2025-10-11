@@ -20,9 +20,9 @@ if PREPASS_PROMPT_PATH.exists():
     with open(PREPASS_PROMPT_PATH, encoding="utf-8") as f:
         DETECTOR_PROMPT = f.read().strip()
 else:
-    DETECTOR_PROMPT = """You are a TTS preprocessing detector. Find problematic patterns and suggest specific replacements.
+    DETECTOR_PROMPT = """You are a TTS preprocessing detector working with English text. Find problematic patterns and suggest specific English replacements.
 
-Analyze the text and return JSON with problem words AND their recommended TTS-friendly replacements:
+Analyze the text and return JSON with problem words AND their recommended TTS-friendly English replacements:
 - Stylized/spaced letters: "F ʟ ᴀ s ʜ" → "Flash"
 - Hyphenated letters: "U-N-I-T-E-D" → "United" 
 - ALL-CAPS titles: "REALLY LONG TITLE" → "Really Long Title"
@@ -30,6 +30,8 @@ Analyze the text and return JSON with problem words AND their recommended TTS-fr
 - Bracket stylized: "[M ᴇ ɢ ᴀ B ᴜ s ᴛ ᴇ ʀ]" → "[Mega Buster]"
 
 Skip valid acronyms (NASA, GPU, API, etc.) and preserve code blocks.
+
+IMPORTANT: All replacements must be in standard English. Do not add accents or non-English characters.
 
 Return JSON only:
 { "replacements": [ { "find": "<exact_text>", "replace": "<tts_friendly_version>", "reason": "<why>" } ] }"""

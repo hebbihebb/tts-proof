@@ -371,6 +371,36 @@ class ApiService {
     return this.clientId;
   }
 
+  async runTest(request: {
+    model_name?: string;
+    api_base?: string;
+    chunk_size?: number;
+  }): Promise<{
+    status: string;
+    message: string;
+    log_file: string;
+    summary: {
+      prepass_problems: number;
+      errors: number;
+      chunks_processed: number;
+    };
+    log_content: string;
+  }> {
+    const response = await fetch(`${API_BASE_URL}/run-test`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to run test');
+    }
+
+    return await response.json();
+  }
+
   async getTempDirectory(): Promise<{ path: string }> {
     const response = await fetch(`${API_BASE_URL}/temp-directory`);
     if (!response.ok) {

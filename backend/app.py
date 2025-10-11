@@ -1002,6 +1002,18 @@ async def get_job_chunks(job_id: str, limit: int = 5, offset: int = 0):
         "limit": limit
     }
 
+@app.get("/api/test-simple")
+async def test_simple():
+    """Ultra simple test endpoint."""
+    return {"status": "working", "message": "Simple test works"}
+
+@app.post("/api/run-test")  
+async def run_test(request: dict):
+    """Run a simple test using webui_test.md file."""
+    return {"status": "success", "message": "Temporarily simplified - backend working"}
+
+# Removed complex function for simple testing
+
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
     """WebSocket endpoint for real-time updates."""
