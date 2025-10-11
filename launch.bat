@@ -96,8 +96,11 @@ echo.
 echo Backend: http://localhost:8000
 echo Frontend: http://localhost:%FRONTEND_PORT%
 echo.
-echo Close this window or press any key to continue...
-pause >nul
+echo Servers are running in separate windows.
+echo Close individual server windows to stop them.
+echo.
+echo Launcher will exit in 3 seconds...
+timeout /t 3 /nobreak >nul
 goto :eof
 
 :check_port

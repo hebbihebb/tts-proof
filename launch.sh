@@ -56,33 +56,44 @@ echo "Backend will start on: http://localhost:8000"
 echo "Frontend will start on: http://localhost:5173"
 echo ""
 
-# Function to cleanup on exit
-cleanup() {
-    echo ""
-    echo "🛑 Shutting down servers..."
-    kill $BACKEND_PID $FRONTEND_PID 2>/dev/null || true
-    wait $BACKEND_PID $FRONTEND_PID 2>/dev/null || true
-    echo "✓ Servers stopped"
-    exit 0
-}
-
-# Set up trap for cleanup
-trap cleanup SIGINT SIGTERM
-
-# Start backend in background
-cd backend
-python3 app.py &
-BACKEND_PID=$!
-cd ..
+# Start backend in new terminal window
+if command -v gnome-terminal &> /dev/null; then
+    # Linux with GNOME
+    gnome-terminal --title="TTS-Proof Backend" --working-directory="$(pwd)/backend" -- python3 app.py
+elif command -v xterm &> /dev/null; then
+    # Generic X11 terminal
+    xterm -title "TTS-Proof Backend" -e "cd backend && python3 app.py" &
+elif command -v osascript &> /dev/null; then
+    # macOS
+    osascript -e "tell app \"Terminal\" to do script \"cd $(pwd)/backend && python3 app.py\""
+else
+    echo "⚠️  Could not detect terminal emulator, starting in background..."
+    cd backend
+    python3 app.py &
+    BACKEND_PID=$!
+    cd ..
+fi
 
 # Wait a moment for backend to start
 sleep 3
 
-# Start frontend in background
-cd frontend
-npm run dev &
-FRONTEND_PID=$!
-cd ..
+# Start frontend in new terminal window  
+if command -v gnome-terminal &> /dev/null; then
+    # Linux with GNOME
+    gnome-terminal --title="TTS-Proof Frontend" --working-directory="$(pwd)/frontend" -- npm run dev
+elif command -v xterm &> /dev/null; then
+    # Generic X11 terminal
+    xterm -title "TTS-Proof Frontend" -e "cd frontend && npm run dev" &
+elif command -v osascript &> /dev/null; then
+    # macOS
+    osascript -e "tell app \"Terminal\" to do script \"cd $(pwd)/frontend && npm run dev\""
+else
+    echo "⚠️  Could not detect terminal emulator, starting in background..."
+    cd frontend
+    npm run dev &
+    FRONTEND_PID=$!
+    cd ..
+fi
 
 # Wait for servers to be ready
 echo "⏳ Waiting for servers to start..."
@@ -104,8 +115,8 @@ echo "📍 Application URLs:"
 echo "   • Frontend (Web UI): http://localhost:5173"
 echo "   • Backend (API):     http://localhost:8000"
 echo ""
-echo "🛑 Press Ctrl+C to stop the application"
+echo "✅ Servers are running in separate terminal windows"
+echo "💡 Close individual terminal windows to stop servers"
 echo ""
-
-# Wait for processes
-wait $BACKEND_PID $FRONTEND_PID
+echo "🚪 Launcher will exit in 3 seconds..."
+sleep 3

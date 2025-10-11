@@ -126,14 +126,8 @@ Write-Host "📍 Application URLs:" -ForegroundColor White
 Write-Host "   • Frontend (Web UI): http://localhost:$frontendPort" -ForegroundColor Cyan
 Write-Host "   • Backend (API):     http://localhost:8000" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "📖 Usage:" -ForegroundColor White
-Write-Host "   1. Upload a Markdown file for processing"
-Write-Host "   2. Select your LLM model and adjust settings"  
-Write-Host "   3. Click 'Process Text' to start grammar correction"
+Write-Host "✅ Servers are running in separate windows" -ForegroundColor Green
+Write-Host "💡 Close individual server windows to stop them" -ForegroundColor Yellow
 Write-Host ""
-Write-Host "🛑 To stop the application:" -ForegroundColor Red
-Write-Host "   • Close the backend and frontend console windows"
-Write-Host "   • Or press Ctrl+C in each window"
-Write-Host ""
-
-Read-Host "Press Enter to close this launcher"
+Write-Host "� Launcher will exit in 3 seconds..." -ForegroundColor Yellow
+Start-Sleep -Seconds 3

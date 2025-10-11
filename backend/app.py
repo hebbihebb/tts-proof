@@ -105,7 +105,8 @@ async def run_prepass_with_websocket(input_path: Path, api_base: str, model: str
         print(f"WebSocket prepass starting - client_id: {client_id}")
         
         # Load and chunk the markdown (use same method as original prepass)
-        raw_text = input_path.read_text(encoding="utf-8")
+        with open(input_path, 'r', encoding='utf-8') as f:
+            raw_text = f.read()
         chunks = chunk_paragraphs(raw_text, chunk_chars)
         
         # Filter to text chunks only (skip code blocks)
@@ -162,9 +163,10 @@ async def run_prepass_with_websocket(input_path: Path, api_base: str, model: str
                 print(f"Calling detect_tts_problems for chunk {chunk_idx + 1}")
                 
                 # Run the synchronous LLM call in a thread to avoid blocking the event loop
+                # Use the enhanced PREPASS_PROMPT loaded at startup
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     replacements = await asyncio.get_event_loop().run_in_executor(
-                        executor, detect_tts_problems, api_base, model, content, False
+                        executor, detect_tts_problems, api_base, model, content, False, PREPASS_PROMPT
                     )
                 
                 print(f"Chunk {chunk_idx + 1} completed with {len(replacements)} replacements")
@@ -480,8 +482,8 @@ async def run_prepass_detection(request: PrepassRequest):
                 )
                 print("WebSocket prepass completed successfully")
             else:
-                # Use original version when no WebSocket updates needed
-                print("Using original prepass (no progress updates)")
+                # Use the SAME working run_prepass function that produces superior results
+                print("Using original run_prepass (no progress updates)")
                 report = run_prepass(
                     temp_file,
                     api_base,
@@ -489,7 +491,7 @@ async def run_prepass_detection(request: PrepassRequest):
                     request.chunk_size,
                     show_progress=False
                 )
-                print("Original prepass completed successfully")
+                print("Original run_prepass completed successfully")
             
             return {
                 "status": "success",
@@ -1007,12 +1009,98 @@ async def test_simple():
     """Ultra simple test endpoint."""
     return {"status": "working", "message": "Simple test works"}
 
+@app.get("/api/health")
+async def health_check():
+    """Simple health check endpoint."""
+    return {"status": "ok", "message": "Backend is running"}
+
 @app.post("/api/run-test")  
 async def run_test(request: dict):
-    """Run a simple test using webui_test.md file."""
-    return {"status": "success", "message": "Temporarily simplified - backend working"}
-
-# Removed complex function for simple testing
+    """Run a comprehensive test using webui_test.md file."""
+    try:
+        # Check if webui_test.md exists
+        test_file = Path(__file__).parent.parent / "webui_test.md"
+        if not test_file.exists():
+            return {
+                "status": "error",
+                "message": "webui_test.md not found",
+                "summary": {
+                    "prepass_problems": 0,
+                    "chunks_processed": 0,
+                    "errors": 1
+                },
+                "log_file": None
+            }
+        
+        # Read test content
+        with open(test_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Run a quick prepass test
+        api_base = request.get('api_base', DEFAULT_API_BASE)
+        model = request.get('model_name', DEFAULT_MODEL)
+        chunk_size = request.get('chunk_size', 8000)
+        
+        # Create temp file and run prepass
+        temp_dir = tempfile.gettempdir()
+        temp_file = Path(temp_dir) / f"test_{uuid.uuid4()}.md"
+        with open(temp_file, 'w', encoding='utf-8') as f:
+            f.write(content)
+        
+        try:
+            # Use the SAME working run_prepass function that produces superior results
+            report = run_prepass(
+                temp_file,  # Pass Path object, not string
+                api_base,
+                model,
+                chunk_size,
+                show_progress=False
+            )
+            
+            # Extract summary info
+            summary = report.get('summary', {})
+            unique_problems = len(summary.get('unique_problem_words', []))
+            chunks_processed = summary.get('chunks_processed', 0)
+            sample_problems = summary.get('unique_problem_words', [])[:3]  # First 3 problems
+            
+            return {
+                "status": "success",
+                "message": f"Test completed - found {unique_problems} problems in {chunks_processed} chunks. Sample: {sample_problems}",
+                "summary": {
+                    "prepass_problems": unique_problems,
+                    "chunks_processed": chunks_processed,
+                    "errors": 0
+                },
+                "log_file": "test_log.md"
+            }
+            
+        except Exception as e:
+            return {
+                "status": "error", 
+                "message": f"Test failed: {str(e)}",
+                "summary": {
+                    "prepass_problems": 0,
+                    "chunks_processed": 0,
+                    "errors": 1
+                },
+                "log_file": None
+            }
+        finally:
+            # Clean up temp file
+            if temp_file.exists():
+                temp_file.unlink()
+                
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Test setup failed: {str(e)}",
+            "summary": {
+                "prepass_problems": 0,
+                "chunks_processed": 0,
+                "errors": 1
+            },
+            "log_file": None
+        }
 
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):

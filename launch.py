@@ -361,17 +361,19 @@ class TTSProofLauncher:
         frontend_port = self.open_browser()
         self.print_info(frontend_port)
         
-        # Keep launcher running (except on Windows where processes are in new windows)
+        # Exit launcher after starting servers (reduced windows)
         if platform.system() != "Windows":
-            try:
-                print("Press Ctrl+C to stop...")
-                while True:
-                    time.sleep(1)
-            except KeyboardInterrupt:
-                self.cleanup(backend_proc, frontend_proc)
+            # On Unix-like systems, keep processes attached but exit cleanly
+            print("✅ Servers started successfully!")
+            print("🔗 Backend and frontend are now running independently")
+            print("💡 Close individual server windows to stop them")
         else:
-            input("Press Enter to exit launcher...")
-            # On Windows, processes run in separate windows, so we don't need to manage them
+            # On Windows, servers run in separate console windows
+            print("✅ Servers started successfully!")
+            print("🔗 Backend and frontend are running in separate windows")
+            print("💡 Close individual console windows to stop the servers")
+            print("\n🚪 Launcher will now exit (servers continue running)")
+            time.sleep(3)  # Give user time to read the message
         
         return True
 

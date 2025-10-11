@@ -1,6 +1,6 @@
 # TTS-Proof Simple Test Log
 
-**Generated:** 2025-10-11 19:32:38
+**Generated:** 2025-10-11 21:01:50
 **API Base:** http://127.0.0.1:1234/v1
 **Model:** qwen/qwen3-4b-2507
 **Chunk Size:** 8000
@@ -9,7 +9,7 @@
 
 - **Errors:** 0
 - **Prepass Success:** ✅
-- **Timing:** {'prepass': 24.140218496322632}
+- **Timing:** {'prepass': 12.557940244674683}
 
 ## Original Content
 
@@ -114,7 +114,7 @@ Output only the corrected Markdown; no explanations.
 ```json
 {
   "source": "webui_test.md",
-  "created_at": "2025-10-11T19:33:02.535900",
+  "created_at": "2025-10-11T21:02:03.386156",
   "chunks": [
     {
       "id": 1,
