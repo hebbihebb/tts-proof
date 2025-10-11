@@ -8,13 +8,15 @@ interface PromptEditorProps {
   onSave: (prompt: string) => void;
   initialPrompt: string;
   onLog?: (message: string, type: 'info' | 'success' | 'warning' | 'error') => void;
+  isPrepass?: boolean;
 }
 export const PromptEditor: React.FC<PromptEditorProps> = ({
   isOpen,
   onClose,
   onSave,
   initialPrompt,
-  onLog
+  onLog,
+  isPrepass = false
 }) => {
   const [prompt, setPrompt] = useState<string>(initialPrompt);
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -22,12 +24,18 @@ export const PromptEditor: React.FC<PromptEditorProps> = ({
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await apiService.saveGrammarPrompt(prompt);
+      if (isPrepass) {
+        await apiService.savePrepassPrompt(prompt);
+        onLog?.('Prepass prompt saved successfully', 'success');
+      } else {
+        await apiService.saveGrammarPrompt(prompt);
+        onLog?.('Grammar prompt saved successfully', 'success');
+      }
       onSave(prompt);
-      onLog?.('Grammar prompt saved successfully', 'success');
       onClose();
     } catch (error) {
-      onLog?.(`Failed to save grammar prompt: ${error}`, 'error');
+      const type = isPrepass ? 'prepass' : 'grammar';
+      onLog?.(`Failed to save ${type} prompt: ${error}`, 'error');
     } finally {
       setIsSaving(false);
     }

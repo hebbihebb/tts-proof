@@ -7,12 +7,14 @@ interface ModelPickerProps {
   onModelSelect: (modelId: string) => void;
   onEndpointChange?: (endpoint: string) => void;
   currentEndpoint?: string;
+  label?: string;
 }
 
 export const ModelPicker: React.FC<ModelPickerProps> = ({
   onModelSelect,
   onEndpointChange,
-  currentEndpoint = 'http://127.0.0.1:1234/v1'
+  currentEndpoint = 'http://127.0.0.1:1234/v1',
+  label
 }) => {
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [models, setModels] = useState<Model[]>([]);
@@ -116,6 +118,7 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
   }
 
   return <div className="relative">
+      {label && <label className="block text-sm font-medium text-light-subtext1 dark:text-catppuccin-subtext1 mb-2">{label}</label>}
       <button onClick={() => setIsOpen(!isOpen)} className="w-full flex items-center justify-between px-4 py-3 bg-light-mantle dark:bg-catppuccin-mantle border border-light-surface0 dark:border-catppuccin-surface0 rounded-lg shadow-soft hover:border-light-surface1 dark:hover:border-catppuccin-surface1 transition-all duration-200">
         <div className="flex items-center">
           <div className="mr-3 w-8 h-8 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">

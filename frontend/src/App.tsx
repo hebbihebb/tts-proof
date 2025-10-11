@@ -11,7 +11,7 @@ import { Button } from './components/Button';
 import { FileAnalysis } from './components/FileAnalysis';
 import { ChunkSizeControl } from './components/ChunkSizeControl';
 import { PrepassControl } from './components/PrepassControl';
-import { EditIcon, PlayIcon, SaveIcon, Square } from 'lucide-react';
+import { EditIcon, PlayIcon, SaveIcon, Square, FolderIcon } from 'lucide-react';
 import { apiService, WebSocketMessage } from './services/api';
 // Fallback prompt if API fails to load
 const FALLBACK_PROMPT = `You are a grammar and spelling corrector for Markdown text.
@@ -51,8 +51,11 @@ const AppContent = () => {
   } = useTheme();
   const [file, setFile] = useState<File | null>(null);
   const [selectedModelId, setSelectedModelId] = useState<string>('');
+  const [prepassModelId, setPrepassModelId] = useState<string>('');
   const [isPromptEditorOpen, setIsPromptEditorOpen] = useState<boolean>(false);
+  const [isPrepassPromptEditorOpen, setIsPrepassPromptEditorOpen] = useState<boolean>(false);
   const [prompt, setPrompt] = useState<string>(FALLBACK_PROMPT);
+  const [prepassPrompt, setPrepassPrompt] = useState<string>('');
   const [progress, setProgress] = useState<number>(0);
   const [status, setStatus] = useState<string>('Ready to process');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -91,7 +94,18 @@ const AppContent = () => {
         addLog('Using fallback grammar prompt', 'warning');
       }
     };
+    const loadPrepassPrompt = async () => {
+      try {
+        const prepassData = await apiService.getPrepassPrompt();
+        setPrepassPrompt(prepassData.prompt);
+        addLog(`Loaded prepass prompt from ${prepassData.source}`, 'info');
+      } catch (error) {
+        console.error('Failed to load prepass prompt:', error);
+        addLog('Using fallback prepass prompt', 'warning');
+      }
+    };
     loadGrammarPrompt();
+    loadPrepassPrompt();
   }, []);
 
   // Save endpoint to localStorage when it changes
@@ -161,8 +175,11 @@ const AppContent = () => {
           }
           if (message.chunks_processed && message.total_chunks) {
             setStatus(`Chunk ${message.chunks_processed}/${message.total_chunks} completed`);
-            addLog(`Completed chunk ${message.chunks_processed}/${message.total_chunks}`, 'success');
           }
+          if (message.chunk?.processed_content) {
+            setProcessedText(prev => prev + message.chunk.processed_content + '\n');
+          }
+          addLog(message.message, 'info');
           break;
         case 'chunk_error':
           addLog(message.message, 'warning');
@@ -181,14 +198,8 @@ const AppContent = () => {
             setStatus('Processing completed successfully!');
           }
           
-          // Use result directly from the completion message (like original md_proof.py)
-          console.log('Completion message received with result:', message.result ? `${message.result.length} chars` : 'no result');
-          if (message.result) {
-            setProcessedText(message.result);
-            addLog(`Processing completed with ${message.result.length} characters`, 'success');
-          } else {
-            addLog('No result in completion message', 'warning');
-          }
+          // The result is now built chunk-by-chunk, so we just log the final message.
+          addLog(`Processing completed with ${message.output_size || 0} characters`, 'success');
           break;
         case 'error':
           setIsProcessing(false);
@@ -256,7 +267,7 @@ const AppContent = () => {
       setIsProcessing(true);
       setProgress(0);
       setStatus('Starting processing...');
-      setProcessedText('');
+      setProcessedText(''); // Clear previous results
       addLog('Sending file for processing...', 'info');
 
       // Set the job ID early (it's the same as client ID) to avoid race condition
@@ -342,6 +353,18 @@ const AppContent = () => {
     URL.revokeObjectURL(url);
     addLog('Processed text saved to file', 'success');
   };
+
+  const handleOpenTempDir = async () => {
+    try {
+      const { path } = await apiService.getTempDirectory();
+      alert(`Temporary files are located at: ${path}\n\nThis path has been copied to your clipboard.`);
+      await navigator.clipboard.writeText(path);
+      addLog(`Copied temp directory path to clipboard: ${path}`, 'info');
+    } catch (error) {
+      addLog(`Failed to get temporary directory: ${error}`, 'error');
+    }
+  };
+
   return <div className={`min-h-screen h-full w-full transition-colors duration-300 ${isDarkMode ? 'dark bg-catppuccin-base text-catppuccin-text' : 'bg-light-base text-light-text'}`}>
       <div className="container mx-auto px-4 py-6 max-w-[1600px] pb-12">
         {/* Header */}
@@ -364,117 +387,132 @@ const AppContent = () => {
               </div>
             </div>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center space-x-2">
+            <Button variant="outline" size="icon" onClick={handleOpenTempDir} title="Open Temp Directory">
+              <FolderIcon className="w-5 h-5" />
+            </Button>
+            <ThemeToggle />
+          </div>
         </header>
 
-        {/* Main control grid - 2 rows x 3 columns */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-          {/* Row 1: File Selection */}
-          <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-4 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0">
-            <h2 className="text-lg font-semibold mb-3 text-light-text dark:text-catppuccin-text">
-              File Selection
-            </h2>
-            <FileSelector onFileSelect={handleFileSelect} />
-            {/* File Analysis - Show when file is selected */}
-            {file && originalText && (
-              <div className="mt-4">
-                <FileAnalysis 
-                  totalCharacters={originalText.length}
-                  estimatedChunks={calculateEstimatedChunks(originalText, chunkSize)}
-                  fileName={file.name}
+        {/* Main control layout - 3 columns */}
+        <div className="flex flex-col lg:flex-row gap-6 mb-6">
+
+          {/* Column 1: Input & Setup */}
+          <div className="flex-1 flex flex-col gap-6">
+            <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-4 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0 flex-grow">
+              <h2 className="text-lg font-semibold mb-3 text-light-text dark:text-catppuccin-text">
+                1. Input & Setup
+              </h2>
+              <div className="space-y-4">
+                <FileSelector onFileSelect={handleFileSelect} />
+                {file && originalText && (
+                  <FileAnalysis
+                    totalCharacters={originalText.length}
+                    estimatedChunks={calculateEstimatedChunks(originalText, chunkSize)}
+                    fileName={file.name}
+                  />
+                )}
+                <ChunkSizeControl
+                  chunkSize={chunkSize}
+                  onChunkSizeChange={setChunkSize}
+                  disabled={isProcessing}
                 />
               </div>
-            )}
-          </section>
+            </section>
+          </div>
 
-          {/* Row 1: Model Selection */}
-          <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-4 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0">
-            <h2 className="text-lg font-semibold mb-3 text-light-text dark:text-catppuccin-text">
-              Model Selection
-            </h2>
-            <ModelPicker 
-              onModelSelect={setSelectedModelId} 
-              onEndpointChange={setCurrentEndpoint}
-              currentEndpoint={currentEndpoint}
-            />
-          </section>
-
-          {/* Row 1: Chunk Size Control */}
-          <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-4 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0">
-            <ChunkSizeControl 
-              chunkSize={chunkSize}
-              onChunkSizeChange={setChunkSize}
-              disabled={isProcessing}
-            />
-          </section>
-
-          {/* Row 2: Prepass Control */}
-          <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-4 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0">
-            <h2 className="text-lg font-semibold mb-3 text-light-text dark:text-catppuccin-text">
-              TTS Prepass
-            </h2>
-            <PrepassControl
-              onPrepassComplete={(report) => {
-                setPrepassReport(report);
-                setUsePrepass(true); // Auto-select the checkbox when prepass completes
-              }}
-              onPrepassClear={() => setPrepassReport(null)}
-              prepassReport={prepassReport}
-              usePrepass={usePrepass}
-              onUsePrepassChange={setUsePrepass}
-              isRunningPrepass={isRunningPrepass}
-              onRunningPrepassChange={setIsRunningPrepass}
-              onPrepassCancel={handleCancelPrepass}
-              content={originalText}
-              modelId={selectedModelId}
-              endpoint={currentEndpoint}
-              chunkSize={chunkSize}
-              onLog={addLog}
-              prepassProgress={prepassProgress}
-              prepassStatus={prepassStatus}
-              prepassChunksProcessed={prepassChunksProcessed}
-              prepassTotalChunks={prepassTotalChunks}
-            />
-          </section>
-
-          {/* Row 2: Prompt Template */}
-          <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-4 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0">
-            <div className="flex justify-between items-center mb-3">
-              <h2 className="text-lg font-semibold text-light-text dark:text-catppuccin-text">
-                Prompt Template
+          {/* Column 2: Pre-processing (Optional) */}
+          <div className="flex-1 flex flex-col gap-6">
+            <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-4 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0 flex-grow">
+              <h2 className="text-lg font-semibold mb-3 text-light-text dark:text-catppuccin-text">
+                2. Pre-processing (Optional)
               </h2>
-              <Button variant="outline" size="sm" icon={<EditIcon className="w-4 h-4" />} onClick={() => setIsPromptEditorOpen(true)}>
-                Edit
-              </Button>
-            </div>
-            <div className="bg-light-crust dark:bg-catppuccin-crust p-3 rounded-lg border border-light-surface1 dark:border-catppuccin-surface1">
-              <pre className="text-sm text-light-subtext1 dark:text-catppuccin-subtext1 whitespace-pre-wrap">
-                {prompt.length > 150 ? `${prompt.substring(0, 150)}...` : prompt}
-              </pre>
-            </div>
-          </section>
+              <div className="space-y-4">
+                <ModelPicker
+                  onModelSelect={setPrepassModelId}
+                  onEndpointChange={setCurrentEndpoint}
+                  currentEndpoint={currentEndpoint}
+                  label="Prepass Model"
+                />
+                <Button variant="outline" size="sm" icon={<EditIcon className="w-4 h-4" />} onClick={() => setIsPrepassPromptEditorOpen(true)}>
+                  Edit Prepass Prompt
+                </Button>
+                <PrepassControl
+                  onPrepassComplete={(report) => {
+                    setPrepassReport(report);
+                    setUsePrepass(true);
+                  }}
+                  onPrepassClear={() => setPrepassReport(null)}
+                  prepassReport={prepassReport}
+                  usePrepass={usePrepass}
+                  onUsePrepassChange={setUsePrepass}
+                  isRunningPrepass={isRunningPrepass}
+                  onRunningPrepassChange={setIsRunningPrepass}
+                  onPrepassCancel={handleCancelPrepass}
+                  content={originalText}
+                  modelId={prepassModelId || selectedModelId}
+                  endpoint={currentEndpoint}
+                  chunkSize={chunkSize}
+                  onLog={addLog}
+                  prepassProgress={prepassProgress}
+                  prepassStatus={prepassStatus}
+                  prepassChunksProcessed={prepassChunksProcessed}
+                  prepassTotalChunks={prepassTotalChunks}
+                />
+              </div>
+            </section>
+          </div>
 
-          {/* Row 2: Processing */}
-          <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-4 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0">
-            <h2 className="text-lg font-semibold mb-3 text-light-text dark:text-catppuccin-text">
-              Process Document
-            </h2>
-            <ProgressBar progress={progress} status={status} isProcessing={isProcessing} />
-            <div className="mt-3 flex space-x-3">
-              {!isProcessing ? (
-                <Button onClick={handleProcess} disabled={!file} icon={<PlayIcon className="w-4 h-4" />} className="flex-1">
-                  Process Text
-                </Button>
-              ) : (
-                <Button onClick={handleCancelProcess} variant="outline" icon={<Square className="w-4 h-4" />} className="flex-1">
-                  Cancel Processing
-                </Button>
-              )}
-              <Button variant="outline" onClick={handleSaveProcessedText} disabled={!processedText} icon={<SaveIcon className="w-4 h-4" />} className="flex-1">
-                Save Result
-              </Button>
-            </div>
-          </section>
+          {/* Column 3: Main Processing */}
+          <div className="flex-1 flex flex-col gap-6">
+            <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-4 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0 flex-grow">
+              <h2 className="text-lg font-semibold mb-3 text-light-text dark:text-catppuccin-text">
+                3. Main Processing
+              </h2>
+              <div className="space-y-4">
+                <ModelPicker
+                  onModelSelect={setSelectedModelId}
+                  onEndpointChange={setCurrentEndpoint}
+                  currentEndpoint={currentEndpoint}
+                  label="Grammar Model"
+                />
+                <div className="bg-light-crust dark:bg-catppuccin-crust p-3 rounded-lg border border-light-surface1 dark:border-catppuccin-surface1">
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-md font-semibold text-light-text dark:text-catppuccin-text">
+                      Grammar Prompt
+                    </h3>
+                    <Button variant="outline" size="sm" icon={<EditIcon className="w-4 h-4" />} onClick={() => setIsPromptEditorOpen(true)}>
+                      Edit
+                    </Button>
+                  </div>
+                  <pre className="text-sm text-light-subtext1 dark:text-catppuccin-subtext1 whitespace-pre-wrap">
+                    {prompt.length > 100 ? `${prompt.substring(0, 100)}...` : prompt}
+                  </pre>
+                </div>
+                <div>
+                  <h3 className="text-md font-semibold mb-2 text-light-text dark:text-catppuccin-text">
+                    Process Document
+                  </h3>
+                  <ProgressBar progress={progress} status={status} isProcessing={isProcessing} />
+                  <div className="mt-3 flex space-x-3">
+                    {!isProcessing ? (
+                      <Button onClick={handleProcess} disabled={!file} icon={<PlayIcon className="w-4 h-4" />} className="flex-1">
+                        Process Text
+                      </Button>
+                    ) : (
+                      <Button onClick={handleCancelProcess} variant="outline" icon={<Square className="w-4 h-4" />} className="flex-1">
+                        Cancel
+                      </Button>
+                    )}
+                    <Button variant="outline" onClick={handleSaveProcessedText} disabled={!processedText} icon={<SaveIcon className="w-4 h-4" />} className="flex-1">
+                      Save Result
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
         </div>
 
         {/* Bottom section - Preview and Logs */}
@@ -506,6 +544,14 @@ const AppContent = () => {
         onSave={setPrompt} 
         initialPrompt={prompt} 
         onLog={addLog}
+      />
+      <PromptEditor
+        isOpen={isPrepassPromptEditorOpen}
+        onClose={() => setIsPrepassPromptEditorOpen(false)}
+        onSave={setPrepassPrompt}
+        initialPrompt={prepassPrompt}
+        onLog={addLog}
+        isPrepass={true}
       />
     </div>;
 };

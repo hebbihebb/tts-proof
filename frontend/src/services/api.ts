@@ -94,6 +94,39 @@ class ApiService {
     return await response.json();
   }
 
+  async getPrepassPrompt(): Promise<{
+    prompt: string;
+    source: string;
+  }> {
+    const response = await fetch(`${API_BASE_URL}/prepass-prompt`);
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch prepass prompt');
+    }
+
+    return await response.json();
+  }
+
+  async savePrepassPrompt(prompt: string): Promise<{
+    status: string;
+    message: string;
+    source: string;
+  }> {
+    const response = await fetch(`${API_BASE_URL}/prepass-prompt`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ prompt }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to save prepass prompt');
+    }
+
+    return await response.json();
+  }
+
   async runPrepass(request: {
     content: string;
     model_name?: string;
@@ -336,6 +369,14 @@ class ApiService {
 
   getClientId(): string {
     return this.clientId;
+  }
+
+  async getTempDirectory(): Promise<{ path: string }> {
+    const response = await fetch(`${API_BASE_URL}/temp-directory`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch temp directory');
+    }
+    return await response.json();
   }
 }
 

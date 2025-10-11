@@ -14,7 +14,13 @@ import requests
 # Import from md_proof for LLM communication and chunking
 from md_proof import call_lmstudio, chunk_paragraphs, mask_urls, unmask_urls, Spinner
 
-DETECTOR_PROMPT = """You are a TTS preprocessing detector. Find problematic patterns and suggest specific replacements.
+# Load the prepass prompt from file, with a fallback
+PREPASS_PROMPT_PATH = Path(__file__).parent / "prepass_prompt.txt"
+if PREPASS_PROMPT_PATH.exists():
+    with open(PREPASS_PROMPT_PATH, encoding="utf-8") as f:
+        DETECTOR_PROMPT = f.read().strip()
+else:
+    DETECTOR_PROMPT = """You are a TTS preprocessing detector. Find problematic patterns and suggest specific replacements.
 
 Analyze the text and return JSON with problem words AND their recommended TTS-friendly replacements:
 - Stylized/spaced letters: "F ʟ ᴀ s ʜ" → "Flash"
@@ -28,7 +34,7 @@ Skip valid acronyms (NASA, GPU, API, etc.) and preserve code blocks.
 Return JSON only:
 { "replacements": [ { "find": "<exact_text>", "replace": "<tts_friendly_version>", "reason": "<why>" } ] }"""
 
-def detect_tts_problems(api_base: str, model: str, text: str, show_spinner: bool = False) -> List[Dict[str, str]]:
+def detect_tts_problems(api_base: str, model: str, text: str, show_spinner: bool = False, prompt_template: str = DETECTOR_PROMPT) -> List[Dict[str, str]]:
     """
     Call LLM with detector prompt to find TTS problems and get replacement suggestions.
     
@@ -37,6 +43,7 @@ def detect_tts_problems(api_base: str, model: str, text: str, show_spinner: bool
         model: Model name
         text: Text chunk to analyze
         show_spinner: Whether to show spinner during processing
+        prompt_template: The prompt to use for detection
         
     Returns:
         List of replacement dictionaries with 'find', 'replace', and 'reason' keys
@@ -48,7 +55,7 @@ def detect_tts_problems(api_base: str, model: str, text: str, show_spinner: bool
         sp.start()
         
     try:
-        response = call_lmstudio(api_base, model, DETECTOR_PROMPT, masked_text)
+        response = call_lmstudio(api_base, model, prompt_template, masked_text)
         
         # Parse JSON response
         try:
