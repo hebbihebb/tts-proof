@@ -195,6 +195,22 @@ If the process is successful, the output file will be identical to the input fil
 
 ---
 
+## Phase 2 — Pre-Pass 2.0 (Unicode & Spacing)
+
+This phase introduces a deterministic normalization step that runs after masking and before any LLM-based correction. It is designed to clean up common text artifacts that can interfere with Text-to-Speech (TTS) engines and LLM processing.
+
+This pre-pass step handles:
+- **Unicode Cleanup**: Normalizes text to NFKC form, strips zero-width characters, and standardizes punctuation.
+- **Spaced Letter Repair**: Joins spaced-out letters (e.g., "S p a c e d") into a single word.
+- **Hyphenation Healing**: Fixes words broken across lines with a hyphen.
+
+This step can be run from the command line:
+```bash
+python md_proof.py --in testing/test_data/prepass/spaced_letters.md --out .tmp/out.md --steps mask,prepass-basic,unmask
+```
+
+---
+
 ## 🏗️ Architecture
 
 ```
