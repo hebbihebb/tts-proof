@@ -276,9 +276,10 @@ def main():
     ap = argparse.ArgumentParser(description="Batch grammar+spelling correction for Markdown via LM Studio.")
     ap.add_argument("--in", dest="input_file", required=True, help="Path to the input markdown file.")
     ap.add_argument("--out", dest="output_file", help="Path to output .md (default: input stem + .processed.md)")
-    ap.add_argument("--steps", default="proofread", help="Comma-separated steps: 'mask', 'prepass-basic', 'unmask', 'proofread'.")
-    ap.add_argument("--config", help="Path to a YAML config file for prepass-basic.")
-    ap.add_argument("--report", action="store_true", help="Print a report of changes made by prepass-basic.")
+    ap.add_argument("--steps", default="proofread", help="Comma-separated steps: 'mask', 'prepass-basic', 'scrub-dryrun', 'scrub', 'unmask', 'proofread'.")
+    ap.add_argument("--config", help="Path to a YAML config file for prepass-basic and scrubber.")
+    ap.add_argument("--report", action="store_true", help="Print a report of changes made by prepass-basic or scrub-dryrun.")
+    ap.add_argument("--appendix", help="Path to appendix file for scrub step (default: Appendix.md)")
     ap.add_argument("--api-base", default=DEFAULT_API_BASE, help=f"API base (default: {DEFAULT_API_BASE})")
     ap.add_argument("--model", default=DEFAULT_MODEL, help=f"Model name (default: {DEFAULT_MODEL})")
     ap.add_argument("--chunk-chars", type=int, default=8000, help="Approx chars per chunk (default: 8000)")
@@ -345,6 +346,66 @@ def main():
             content, mask_table = markdown_adapter.mask_protected(content)
             mask_table_path.write_text(json.dumps(mask_table, indent=2), encoding="utf-8")
             print(f"Masking complete. {len(mask_table)} items masked and saved to {mask_table_path}")
+
+        elif step == 'scrub-dryrun':
+            from mdp import scrubber, config
+            
+            # Load scrubber config
+            cfg = config.load_config(args.config)
+            scrubber_config = cfg.get('scrubber', {})
+            
+            # Run dry-run scrubbing
+            processed, candidates, report = scrubber.scrub_text(content, scrubber_config, dry_run=True)
+            
+            print("Scrubber Dry-Run Results:")
+            print(f"Total blocks analyzed: {report['total_blocks']}")
+            print(f"Blocks to remove: {report['blocks_to_remove']}")
+            print(f"Blocks to keep: {report['blocks_to_keep']}")
+            print()
+            
+            if candidates:
+                print(scrubber.format_dry_run_table(candidates))
+            else:
+                print("No blocks detected for removal.")
+            
+            if args.report:
+                print("\nCategory breakdown:")
+                for category, count in sorted(report['by_category'].items()):
+                    if count > 0:
+                        print(f"  - {category}: {count}")
+
+        elif step == 'scrub':
+            from mdp import scrubber, appendix, config
+            
+            # Load scrubber config
+            cfg = config.load_config(args.config)
+            scrubber_config = cfg.get('scrubber', {})
+            
+            # Run scrubbing
+            processed, candidates, report = scrubber.scrub_text(content, scrubber_config, dry_run=False)
+            content = processed
+            
+            print("Scrubber Results:")
+            print(f"Total blocks analyzed: {report['total_blocks']}")
+            print(f"Blocks removed: {report['blocks_to_remove']}")
+            print(f"Blocks kept: {report['blocks_to_keep']}")
+            
+            if args.report and report['by_category']:
+                print("\nCategory breakdown:")
+                for category, count in sorted(report['by_category'].items()):
+                    if count > 0:
+                        print(f"  - {category}: {count}")
+            
+            # Write appendix if requested and candidates exist
+            if candidates and scrubber_config.get('move_to_appendix', False):
+                appendix_path = Path(args.appendix) if args.appendix else in_path.with_name("Appendix.md")
+                
+                if appendix_path.exists():
+                    appendix.append_to_existing(candidates, appendix_path, in_path.name)
+                    print(f"Appended {len(candidates)} blocks to existing appendix: {appendix_path}")
+                else:
+                    appendix.write_appendix(candidates, appendix_path, in_path.name)
+                    print(f"Moved {len(candidates)} blocks to appendix: {appendix_path}")
 
         elif step == 'unmask':
             from mdp import markdown_adapter
