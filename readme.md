@@ -211,6 +211,91 @@ python md_proof.py --in testing/test_data/prepass/spaced_letters.md --out .tmp/o
 
 ---
 
+## Phase 3 — Boilerplate / Notes Scrubber
+
+**Deterministic & Reversible Cleaning**
+
+Phase 3 introduces an intelligent boilerplate detection and removal system that runs after masking and before LLM-based grammar correction. It identifies and optionally removes non-story content that interferes with processing or reading flow.
+
+### What It Detects
+
+The scrubber identifies several categories of boilerplate content:
+
+- **Author/Translator/Editor Notes**: Pattern-based detection of notes (A/N, T/N, E/N)
+- **Navigation Text**: "Previous Chapter", "Next Chapter", "Table of Contents" links
+- **Promotional Content**: Patreon, Ko-fi, Discord, social media links
+- **Link Farms**: Paragraphs with excessive link density (>50% links)
+- **Watermarks**: "Read on...", "Original at...", "Source on..." stamps
+
+### Edge Bias Protection
+
+To avoid false positives in story content, the scrubber uses **edge bias**:
+- Only examines the **first 6 and last 6 blocks** by default
+- Middle content is preserved unless confidence is >95%
+- Prevents accidental removal of in-story letters, notes, or dialogue
+
+Example: An "Author's Note" at the top of a chapter will be detected and removed, but a letter written by a character in the middle of a story will be preserved.
+
+### Usage Examples
+
+**Dry-Run Mode** (preview candidates without changes):
+```bash
+python md_proof.py --in story.md --steps scrub-dryrun --report
+```
+
+**Apply Scrubbing** (with appendix):
+```bash
+python md_proof.py --in story.md --out clean.md --steps mask,scrub,unmask --appendix Appendix.md --report
+```
+
+**Integrated Workflow** (prepass + scrub + grammar):
+```bash
+python md_proof.py --in story.md --out final.md --steps mask,prepass-basic,scrub,unmask --appendix Appendix.md
+```
+
+### Configuration
+
+Configure scrubber behavior via YAML config file:
+
+```yaml
+scrubber:
+  enabled: true
+  move_to_appendix: true        # Move to Appendix.md vs delete
+  edge_block_window: 6          # Number of edge blocks to check
+  link_density_threshold: 0.50  # 50% link density = link farm
+  min_chars_to_strip: 12        # Minimum block size to consider
+  
+  categories:
+    authors_notes: true
+    translators_notes: false    # Keep translator notes
+    editors_notes: true
+    navigation: true
+    promos_ads_social: true
+    link_farms: true
+  
+  whitelist:
+    headings_keep:
+      - "Translator's Cultural Notes"
+      - "Historical Context"
+    domains_keep:
+      - "project-notes.local"
+  
+  keywords:
+    promos: ["patreon", "ko-fi", "discord", "support me"]
+    navigation: ["previous chapter", "next chapter", "table of contents"]
+    watermarks: ["read on", "original at", "source on"]
+```
+
+### Reversibility
+
+All removed blocks are preserved in the appendix file with:
+- Original content and position (edge-top, edge-bottom)
+- Detection reason and confidence score
+- Category grouping for easy reference
+- Manual restoration instructions
+
+---
+
 ## 🏗️ Architecture
 
 ```
