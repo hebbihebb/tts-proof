@@ -11,6 +11,7 @@ Available steps:
   - prepass-advanced: Phase 2+ Advanced normalization
   - scrubber: Phase 3 Content scrubbing
   - grammar: Phase 5 Grammar assist (requires Java)
+  - detect: Phase 6 Detector (tiny model → JSON plan)
 """
 
 import argparse
@@ -98,6 +99,25 @@ def run_pipeline(input_text: str, steps: List[str], config: Dict[str, Any]) -> t
             combined_stats['grammar'] = stats
             logger.info(f"  Stats: {stats}")
         
+        elif step == 'detect':
+            # Phase 6: Detector
+            from detector.detector import run_detector
+            from detector.schema import plan_to_json
+            
+            # Extract text nodes for detector (simple approach - split on newlines)
+            # In real implementation, would use AST to get actual text nodes
+            text_nodes = [line.strip() for line in text.split('\n') if line.strip()]
+            
+            detector_config = config.get('detector', {})
+            plan, stats = run_detector(text_nodes, detector_config)
+            combined_stats['detect'] = stats
+            combined_stats['detect']['plan_size'] = len(plan)
+            logger.info(f"  Proposed {len(plan)} replacements")
+            logger.info(f"  Stats: {stats}")
+            
+            # Store plan for potential use by Phase 7
+            combined_stats['detect']['plan'] = plan_to_json(plan)
+        
         else:
             logger.warning(f"Unknown step: {step}")
     
@@ -138,6 +158,10 @@ Examples:
                        help='Comma-separated pipeline steps (default: mask,prepass-basic)')
     parser.add_argument('--report', type=Path, 
                        help='Output JSON report file with statistics')
+    parser.add_argument('--plan', type=Path,
+                       help='Output JSON plan file (for detector step)')
+    parser.add_argument('--print-plan', action='store_true',
+                       help='Print detector plan to stdout')
     parser.add_argument('-v', '--verbose', action='store_true',
                        help='Verbose output')
     
@@ -164,7 +188,7 @@ Examples:
     logger.info(f"Pipeline steps: {' → '.join(steps)}")
     
     # Validate steps
-    valid_steps = {'mask', 'prepass-basic', 'prepass-advanced', 'scrubber', 'grammar'}
+    valid_steps = {'mask', 'prepass-basic', 'prepass-advanced', 'scrubber', 'grammar', 'detect'}
     invalid_steps = set(steps) - valid_steps
     if invalid_steps:
         logger.error(f"Invalid steps: {invalid_steps}")
@@ -186,6 +210,18 @@ Examples:
         logger.info(f"Wrote output to: {args.output}")
     else:
         print(output_text)
+    
+    # Write detector plan if requested
+    if args.plan and 'detect' in steps and 'detect' in stats:
+        plan_data = stats['detect'].get('plan', [])
+        args.plan.write_text(json.dumps(plan_data, indent=2), encoding='utf-8')
+        logger.info(f"Wrote plan to: {args.plan}")
+    
+    # Print detector plan if requested
+    if args.print_plan and 'detect' in steps and 'detect' in stats:
+        plan_data = stats['detect'].get('plan', [])
+        print("\n=== Detector Plan ===")
+        print(json.dumps(plan_data, indent=2))
     
     # Write report
     if args.report:
