@@ -31,6 +31,33 @@ DEFAULT_CONFIG = {
             'watermarks': ["read on", "original at", "source on"],
         },
     },
+    'prepass_advanced': {
+        'enabled': True,
+        'casing': {
+            'normalize_shouting': True,
+            'shouting_min_len': 4,
+            'acronym_whitelist': ["NASA", "GPU", "JSON", "HTML", "TTS", "API", "URL", "HTTP", "HTTPS", "CSS", "SQL"],
+            'titlecase_headings': False,
+            'protected_lexicon': ["Aaahahaha", "BLUH", "Reykjavík", "Þór", "AAAAAA"],
+        },
+        'punctuation': {
+            'collapse_runs': True,
+            'runs_policy': 'first-of-each',  # "first-only" | "first-of-each"
+            'ellipsis': 'three-dots',        # "three-dots" | "unicode"
+            'quotes': 'straight',            # "straight" | "curly"
+            'apostrophe': 'straight',        # "straight" | "curly"
+            'space_after_sentence': 'single', # "single" | "double"
+        },
+        'numbers_units': {
+            'join_percent': True,
+            'space_before_unit': 'normal',   # "normal" | "nbsp" | "none"
+            'time_style': 'p.m.',            # "p.m." | "PM" | "pm"
+            'locale': 'en',
+        },
+        'footnotes': {
+            'remove_inline_markers': False,
+        },
+    },
 }
 
 def load_config(path: str = None) -> Dict[str, Any]:

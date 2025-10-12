@@ -276,9 +276,9 @@ def main():
     ap = argparse.ArgumentParser(description="Batch grammar+spelling correction for Markdown via LM Studio.")
     ap.add_argument("--in", dest="input_file", required=True, help="Path to the input markdown file.")
     ap.add_argument("--out", dest="output_file", help="Path to output .md (default: input stem + .processed.md)")
-    ap.add_argument("--steps", default="proofread", help="Comma-separated steps: 'mask', 'prepass-basic', 'scrub-dryrun', 'scrub', 'unmask', 'proofread'.")
-    ap.add_argument("--config", help="Path to a YAML config file for prepass-basic and scrubber.")
-    ap.add_argument("--report", action="store_true", help="Print a report of changes made by prepass-basic or scrub-dryrun.")
+    ap.add_argument("--steps", default="proofread", help="Comma-separated steps: 'mask', 'prepass-basic', 'prepass-advanced', 'scrub-dryrun', 'scrub', 'unmask', 'proofread'.")
+    ap.add_argument("--config", help="Path to a YAML config file for prepass-basic, prepass-advanced, and scrubber.")
+    ap.add_argument("--report", action="store_true", help="Print a report of changes made by prepass-basic, prepass-advanced, or scrub-dryrun.")
     ap.add_argument("--appendix", help="Path to appendix file for scrub step (default: Appendix.md)")
     ap.add_argument("--api-base", default=DEFAULT_API_BASE, help=f"API base (default: {DEFAULT_API_BASE})")
     ap.add_argument("--model", default=DEFAULT_MODEL, help=f"Model name (default: {DEFAULT_MODEL})")
@@ -340,6 +340,27 @@ def main():
                 print("Prepass Basic Report:")
                 for k, v in sorted(total_report.items()):
                     print(f"  - {k}: {v}")
+
+        elif step == 'prepass-advanced':
+            from mdp import prepass_advanced, config
+
+            cfg = config.load_config(args.config)
+            advanced_config = cfg.get('prepass_advanced', {})
+
+            if not advanced_config.get('enabled', True):
+                print("Prepass advanced is disabled in config.")
+                continue
+
+            # Process text directly (markdown_adapter.extract_text_spans() would be better for production)
+            processed_content, report = prepass_advanced.apply_policies(content, advanced_config)
+            content = processed_content
+
+            print("Prepass advanced normalization complete.")
+            if args.report:
+                print("Prepass Advanced Report:")
+                for k, v in sorted(report.items()):
+                    if v > 0:
+                        print(f"  - {k}: {v}")
 
         elif step == 'mask':
             from mdp import markdown_adapter
