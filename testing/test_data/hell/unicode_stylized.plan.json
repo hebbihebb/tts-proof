@@ -1,0 +1,22 @@
+[
+  {
+    "find": "Bʏ Mʏ Rᴇsᴏʟᴠᴇ",
+    "replace": "By My Resolve",
+    "reason": "UNICODE_STYLIZED"
+  },
+  {
+    "find": "ғʟᴀsʜ",
+    "replace": "flash",
+    "reason": "UNICODE_STYLIZED"
+  },
+  {
+    "find": "ᴛʜᴇ ʙᴇsᴛ ᴄʜᴏɪᴄᴇ",
+    "replace": "the best choice",
+    "reason": "UNICODE_STYLIZED"
+  },
+  {
+    "find": "Sᴍᴀʟʟ Cᴀᴘs",
+    "replace": "Small Caps",
+    "reason": "UNICODE_STYLIZED"
+  }
+]

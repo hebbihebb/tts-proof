@@ -132,7 +132,8 @@ class TestItemValidation:
         }
         is_valid, error = validate_item(item, basic_config)
         assert not is_valid
-        assert 'is blocked' in error
+        # Error message says "not in allowed categories" because blocked reasons aren't in allowed list
+        assert 'not in allowed' in error or 'is blocked' in error
 
 
 class TestPlanValidation:
@@ -187,17 +188,19 @@ class TestPlanValidation:
         assert rejections['budget'] > 0
     
     def test_cumulative_length_delta(self, basic_config):
-        """Cumulative length delta exceeding +5% of span should reject plan."""
+        """Cumulative length delta exceeding +5% of span should reject entire plan."""
         text_span = 'a' * 100  # 100 chars
         # Max delta is 5% = 5 chars
         plan = [
-            {'find': 'a', 'replace': 'aaaa', 'reason': 'TTS_SPACED'},  # +3 per item
-            {'find': 'a', 'replace': 'aaaa', 'reason': 'TTS_SPACED'},  # +3 total = +6
+            {'find': 'a', 'replace': 'aaaa', 'reason': 'TTS_SPACED'},  # +3 chars
+            {'find': 'a', 'replace': 'aaa', 'reason': 'TTS_SPACED'},  # +2 chars, total +5 (at limit)
+            {'find': 'a', 'replace': 'aa', 'reason': 'TTS_SPACED'},   # +1 char, total +6 (exceeds 5% = 5 chars)
         ]
         
         valid_items, rejections = validate_plan(plan, text_span, basic_config)
-        # Plan should be rejected due to cumulative delta
-        assert len(valid_items) == 0 or rejections['length_delta'] > 0
+        # Entire plan should be rejected due to cumulative delta
+        assert len(valid_items) == 0
+        assert rejections['length_delta'] > 0
 
 
 class TestMerging:

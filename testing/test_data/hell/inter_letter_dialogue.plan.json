@@ -1,0 +1,22 @@
+[
+  {
+    "find": "F ʟ ᴀ s ʜ",
+    "replace": "Flash",
+    "reason": "TTS_SPACED"
+  },
+  {
+    "find": "S p a c e d L e t t e r s",
+    "replace": "Spaced Letters",
+    "reason": "TTS_SPACED"
+  },
+  {
+    "find": "U-N-I-T-E-D",
+    "replace": "United",
+    "reason": "TTS_SPACED"
+  },
+  {
+    "find": "C A P I T A L",
+    "replace": "Capital",
+    "reason": "TTS_SPACED"
+  }
+]

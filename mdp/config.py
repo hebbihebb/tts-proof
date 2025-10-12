@@ -66,8 +66,8 @@ DEFAULT_CONFIG = {
     },
     'detector': {
         'enabled': True,
-        'api_base': 'http://127.0.0.1:1234/v1',
-        'model': 'qwen-1_8b-instruct',
+        'api_base': 'http://192.168.8.104:1234/v1',  # Network LM Studio server
+        'model': 'qwen2.5-1.5b-instruct',  # Qwen/Qwen2.5-1.5B-Instruct-GGUF Q4_K_M
         'max_context_tokens': 1024,
         'max_output_chars': 2000,
         'timeout_s': 8,
