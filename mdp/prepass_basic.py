@@ -149,3 +149,75 @@ def _heal_hyphenation(text: str) -> Tuple[str, Dict[str, int]]:
 
     text = pattern.sub(repl, text)
     return text, dict(report)
+
+def main():
+    """CLI interface for prepass-basic normalization."""
+    import argparse
+    from pathlib import Path
+    from . import config, markdown_adapter
+    
+    parser = argparse.ArgumentParser(
+        description='Apply deterministic text normalization to Markdown files'
+    )
+    parser.add_argument('input_file', type=Path, help='Input Markdown file')
+    parser.add_argument('-o', '--output', type=Path, help='Output file path')
+    parser.add_argument('-c', '--config', type=Path, help='Configuration YAML file')
+    parser.add_argument('--report', action='store_true', help='Print normalization report')
+    
+    args = parser.parse_args()
+    
+    # Load configuration
+    cfg = config.load_config(args.config) if args.config else config.load_config()
+    
+    # Read input file
+    input_path = args.input_file
+    if not input_path.exists():
+        print(f"Error: Input file not found: {input_path}")
+        return 1
+    
+    md_content = input_path.read_text(encoding='utf-8')
+    
+    # Process text spans
+    text_spans = markdown_adapter.extract_text_spans(md_content)
+    new_content_parts = []
+    last_end = 0
+    total_report = defaultdict(int)
+    
+    for span in text_spans:
+        new_content_parts.append(md_content[last_end:span['start']])
+        normalized_text, report = normalize_text_nodes(span['text'], cfg)
+        new_content_parts.append(normalized_text)
+        for k, v in report.items():
+            total_report[k] += v
+        last_end = span['end']
+    
+    new_content_parts.append(md_content[last_end:])
+    normalized_content = "".join(new_content_parts)
+    
+    # Determine output path
+    output_path = args.output
+    if not output_path:
+        # Default: create .tmp directory and output file
+        tmp_dir = input_path.parent / '.tmp'
+        tmp_dir.mkdir(exist_ok=True)
+        output_path = tmp_dir / 'prepass_out.md'
+    
+    # Write output
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(normalized_content, encoding='utf-8')
+    
+    # Print summary
+    print(f"Processing: {input_path}")
+    if total_report:
+        print("\nTransformations applied:")
+        for key, count in sorted(total_report.items()):
+            print(f"  - {key}: {count}")
+    else:
+        print("\nNo transformations needed.")
+    print(f"\nOutput saved: {output_path}")
+    
+    return 0
+
+if __name__ == '__main__':
+    import sys
+    sys.exit(main())
