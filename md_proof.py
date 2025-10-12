@@ -289,8 +289,13 @@ def process_file(in_path: Path, out_path: Path, api_base, model,
 
 def main():
     ap = argparse.ArgumentParser(description="Batch grammar+spelling correction for Markdown via LM Studio.")
-    ap.add_argument("input", help="Path to input .md file")
-    ap.add_argument("-o", "--output", help="Path to output .md (default: input stem + .corrected.md)")
+    # I/O arguments
+    ap.add_argument("--in", dest="input_file", required=True, help="Path to the input markdown file.")
+    ap.add_argument("--out", dest="output_file", help="Path to output .md (default: input stem + .corrected.md)")
+
+    # Operation mode
+    ap.add_argument("--steps", default="proofread", help="Comma-separated steps to perform: 'mask', 'unmask', 'proofread'.")
+
     ap.add_argument("--api-base", default=DEFAULT_API_BASE, help=f"API base (default: {DEFAULT_API_BASE})")
     ap.add_argument("--model", default=DEFAULT_MODEL, help=f"Model name (default: {DEFAULT_MODEL})")
     ap.add_argument("--chunk-chars", type=int, default=8000, help="Approx chars per chunk (default: 8000)")
@@ -306,9 +311,42 @@ def main():
     ap.add_argument("--prepass-report", help="Custom path for prepass report (default: prepass_report.json)")
     args = ap.parse_args()
 
-    in_path = Path(args.input)
+    in_path = Path(args.input_file)
     if not in_path.exists():
         print(f"Input file not found: {in_path}", file=sys.stderr); sys.exit(1)
+
+    steps = [s.strip().lower() for s in args.steps.split(',')]
+
+    if "mask" in steps or "unmask" in steps:
+        from mdp import markdown_adapter
+
+        with open(in_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        print(f"Read {len(content)} bytes from {in_path}")
+
+        mask_table = {}
+        if "mask" in steps:
+            content, mask_table = markdown_adapter.mask_protected(content)
+            print(f"Masking complete. {len(mask_table)} items masked.")
+
+        if "unmask" in steps:
+            if not mask_table:
+                # If only unmasking, we need to generate the mask table from the (already masked) content
+                # This is a bit of a chicken-and-egg problem, so we re-mask to get the table
+                _, mask_table = markdown_adapter.mask_protected(content)
+            content = markdown_adapter.unmask(content, mask_table)
+            print("Unmasking complete.")
+
+        if args.output_file:
+            output_path = Path(args.output_file)
+        else:
+            output_path = in_path.with_name(f"{in_path.stem}.masked_output{in_path.suffix}")
+
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        print(f"Output written to {output_path}")
+        return
 
     # Handle prepass mode
     prepass_report = None
@@ -338,7 +376,7 @@ def main():
         print("Continuing to grammar correction with prepass integration...")
         print()
 
-    out_path = Path(args.output) if args.output else in_path.with_suffix(".corrected.md")
+    out_path = Path(args.output_file) if args.output_file else in_path.with_suffix(".corrected.md")
 
     if args.dry_run:
         # Dry run ignores checkpointing/partial; keep old behavior.

@@ -14,3 +14,5 @@ Preservation rules:
 - Keep valid acronyms (NASA, GPU, API, etc.)
 
 Output only the corrected Markdown; no explanations.
+
+/no_think
