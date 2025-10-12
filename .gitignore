@@ -77,3 +77,62 @@ coverage/
 .coverage
 htmlcov/
 .pytest_cache/
+
+# ===== STRESS TESTING & ITERATION SYSTEM =====
+# Stress testing results and artifacts (now in /testing/)
+testing/stress_test_results/
+testing/stress_test_output/
+testing/*_stress_result.md
+testing/*_stress_comparison.json
+testing/stress_test_log_*.md
+
+# Iteration framework files (now in /prompts/)
+testing/iteration_results/
+testing/iteration_session_*.json
+prompts/prompt_versions/
+prompts/*_iteration_*.txt
+prompts/*_iteration_*.json
+testing/iteration_*.log
+
+# Performance tracking data
+performance_history/
+performance_metrics_*.json
+benchmark_results/
+*_performance.log
+
+# Network testing artifacts
+network_test_results/
+*_network_test.json
+network_performance_*.log
+
+# Reference comparison files (keep reference files, exclude results)
+*_comparison_result.json
+*_reference_analysis.md
+comparison_metrics_*.json
+
+# Temporary iteration files
+*.iteration_backup
+*.prompt_version
+*_iteration_temp.*
+
+# Generated analysis reports (preserve documentation, exclude generated results)
+baseline_results_analysis.md
+iteration_results_summary.md
+functional_parity_analysis.md
+integration_task_recommendations.md
+
+# Test and validation artifacts
+validation_results/
+*_validation.json
+test_session_*.md
+comprehensive_test_*.log
+
+# Model performance data
+model_performance/
+*_model_metrics.json
+performance_comparison_*.csv
+
+# Automated testing results
+auto_test_results/
+*_auto_test.json
+test_run_*.log

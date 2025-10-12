@@ -103,7 +103,7 @@ def chunk_paragraphs(md_text: str, chunk_chars: int):
     return chunks
 
 # ---------- LLM ----------
-def call_lmstudio(api_base, model, system_prompt, user_text, temperature=0.0, max_tokens=4096, timeout=180):
+def call_lmstudio(api_base, model, system_prompt, user_text, temperature=0.0, max_tokens=4096, timeout=600):
     url = f"{api_base}/chat/completions"
     payload = {
         "model": model, "temperature": temperature, "max_tokens": max_tokens,
@@ -111,11 +111,19 @@ def call_lmstudio(api_base, model, system_prompt, user_text, temperature=0.0, ma
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": f"{SENTINEL_START}\n{user_text}\n{SENTINEL_END}"},
         ],
+        "stop": ["</RESULT>"],
+        "enable_thinking": False  # Disable Qwen3 reasoning mode
     }
     r = requests.post(url, json=payload, timeout=timeout)
     r.raise_for_status()
     data = r.json()
-    return data["choices"][0]["message"]["content"]
+    content = data["choices"][0]["message"]["content"]
+    
+    # Strip Qwen3 reasoning tags if present (workaround for /no_think not working)
+    import re
+    content = re.sub(r'<think>.*?</think>\s*', '', content, flags=re.DOTALL)
+    
+    return content
 
 def extract_between_sentinels(text: str):
     start = text.find(SENTINEL_START); end = text.rfind(SENTINEL_END)

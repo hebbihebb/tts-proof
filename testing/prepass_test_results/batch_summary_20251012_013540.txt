@@ -1,0 +1,22 @@
+BATCH PREPASS PROMPT TESTING SUMMARY
+============================================================
+
+Timestamp: 2025-10-12 01:35:40
+Total variations tested: 6
+
+Rank   Name                 Accuracy     Problems   Time       Similarity  
+--------------------------------------------------------------------------------
+1      v1_current           ERROR        -          -          -           
+       Error: run_prepass() got an unexpected keyword argument 'input_text'
+2      v2_detailed          ERROR        -          -          -           
+       Error: run_prepass() got an unexpected keyword argument 'input_text'
+3      v3_concise           ERROR        -          -          -           
+       Error: run_prepass() got an unexpected keyword argument 'input_text'
+4      v4_stepbystep        ERROR        -          -          -           
+       Error: run_prepass() got an unexpected keyword argument 'input_text'
+5      v5_precision         ERROR        -          -          -           
+       Error: run_prepass() got an unexpected keyword argument 'input_text'
+6      v6_context           ERROR        -          -          -           
+       Error: run_prepass() got an unexpected keyword argument 'input_text'
+
+🏆 Best performer: v1_current with 0.0% accuracy

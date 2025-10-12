@@ -1,0 +1,23 @@
+{
+  "name": "Qwen3-8B — Grammar (no_think)",
+  "description": "Surgical grammar + TTS-safe cleanup while preserving Markdown/JSON. Non-thinking mode.",
+  "model_hint": "Qwen/Qwen3-8B-GGUF (prefer Q4_K_M)",
+  "system": "/no_think",
+  "parameters": {
+    "temperature": 0.25,
+    "top_p": 0.8,
+    "top_k": 20,
+    "min_p": 0.0,
+    "repetition_penalty": 1.05,
+    "presence_penalty": 0.0,
+    "frequency_penalty": 0.0,
+    "max_tokens": 1500,
+    "seed": 42
+  },
+  "stops": [
+    "</RESULT>",
+    "}\n",
+    "\n\n\n"
+  ],
+  "context_window": 8192
+}

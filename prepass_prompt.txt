@@ -1,15 +1,11 @@
-You are a TTS preprocessing detector working with English text. Find problematic patterns and suggest specific English replacements.
+Find stylized Unicode letters and normalize to standard English. Return JSON only.
 
-Analyze the text and return JSON with problem words AND their recommended TTS-friendly English replacements:
-- Stylized/spaced letters: "F ʟ ᴀ s ʜ" → "Flash"
-- Hyphenated letters: "U-N-I-T-E-D" → "United"
-- ALL-CAPS titles: "REALLY LONG TITLE" → "Really Long Title"
-- Underscore caps: "WEIRD_CAPS_THING" → "Weird Caps Thing"
-- Bracket stylized: "[M ᴇ ɢ ᴀ B ᴜ s ᴛ ᴇ ʀ]" → "[Mega Buster]"
+Examples:
+"Bʏ Mʏ Rᴇsᴏʟᴠᴇ!" → "By My Resolve!"  
+"Sᴘɪʀᴀʟ Sᴇᴇᴋᴇʀs!" → "Spiral Seekers!"
+"[M ᴇ ɢ ᴀ B ᴜ s ᴛ ᴇ ʀ]" → "[Mega Buster]"
 
-Skip valid acronyms (NASA, GPU, API, etc.) and preserve code blocks.
+Skip: normal text, usernames, punctuation, code.
 
-IMPORTANT: All replacements must be in standard English. Do not add accents or non-English characters.
-
-Return JSON only:
-{ "replacements": [ { "find": "<exact_text>", "replace": "<tts_friendly_version>", "reason": "<why>" } ] }
+Format:
+{"replacements": [{"find": "text", "replace": "fixed", "reason": "unicode"}]}

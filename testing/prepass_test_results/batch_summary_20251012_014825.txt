@@ -1,0 +1,16 @@
+BATCH PREPASS PROMPT TESTING SUMMARY
+============================================================
+
+Timestamp: 2025-10-12 01:48:25
+Total variations tested: 6
+
+Rank   Name                 Accuracy     Problems   Time       Similarity  
+--------------------------------------------------------------------------------
+1      v1_current                3.2%        8      191.7s        45.9%
+2      v2_detailed               3.2%       17      107.4s        46.5%
+3      v3_concise                3.2%       17      107.4s        46.5%
+4      v4_stepbystep             3.2%       17      107.3s        46.5%
+5      v5_precision              3.2%       17      107.4s        46.5%
+6      v6_context                3.2%       17      107.4s        46.5%
+
+🏆 Best performer: v1_current with 3.2% accuracy
