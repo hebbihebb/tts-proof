@@ -58,6 +58,12 @@ DEFAULT_CONFIG = {
             'remove_inline_markers': False,
         },
     },
+    'grammar_assist': {
+        'enabled': True,
+        'language': 'en',
+        'safe_categories': ['TYPOS', 'PUNCTUATION', 'CASING', 'SPACING', 'SIMPLE_AGREEMENT'],
+        'interactive': False,  # Always non-interactive (auto-apply)
+    },
 }
 
 def load_config(path: str = None) -> Dict[str, Any]:
