@@ -254,31 +254,43 @@ def _map_languagetool_category(rule_id: str, lt_category: str) -> Optional[str]:
     Map LanguageTool rule categories to our safe categories.
     
     This is a conservative mapping - when in doubt, return None (reject).
+    
+    LanguageTool often uses the GRAMMAR category for many things including
+    typos and agreement errors, so we need to check rule IDs to distinguish.
     """
     rule_id_lower = rule_id.lower()
     lt_category_lower = lt_category.lower()
     
-    # Typos
-    if 'spelling' in lt_category_lower or 'typo' in rule_id_lower:
-        return 'TYPOS'
-    
-    # Spacing
-    if 'whitespace' in lt_category_lower or 'space' in rule_id_lower:
+    # Spacing (check first - most common and safest)
+    if 'whitespace' in lt_category_lower or 'space' in rule_id_lower or 'consecutive' in rule_id_lower:
         return 'SPACING'
-    
-    # Punctuation
-    if 'punctuation' in lt_category_lower or 'comma' in rule_id_lower:
-        return 'PUNCTUATION'
     
     # Casing
     if 'casing' in lt_category_lower or 'uppercase' in rule_id_lower or 'capitalization' in rule_id_lower:
         return 'CASING'
     
-    # Simple agreement (be conservative)
-    if 'agreement' in lt_category_lower and 'simple' in rule_id_lower:
+    # Punctuation
+    if 'punctuation' in lt_category_lower or 'comma' in rule_id_lower:
+        return 'PUNCTUATION'
+    
+    # Typos/Spelling - LanguageTool often categorizes these as GRAMMAR
+    # Look for morfologik (spelling engine) or specific typo-related rule IDs
+    if ('spelling' in lt_category_lower or 
+        'typo' in rule_id_lower or 
+        'morfologik' in rule_id_lower or
+        'hunspell' in rule_id_lower):
+        return 'TYPOS'
+    
+    # Simple agreement - LanguageTool uses GRAMMAR category with specific rule IDs
+    # Common patterns: HE_VERB_AGR, SHE_VERB_AGR, IT_VBZ, SUBJECT_VERB_AGR, etc.
+    if (lt_category_lower == 'grammar' and 
+        ('verb_agr' in rule_id_lower or 
+         'agreement' in rule_id_lower or
+         '_vbz' in rule_id_lower or
+         '_vb_' in rule_id_lower)):
         return 'SIMPLE_AGREEMENT'
     
-    # Default: reject
+    # Default: reject (better safe than sorry)
     return None
 
 
