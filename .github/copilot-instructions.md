@@ -4,6 +4,8 @@
 
 TTS-Proof is a **local-first** grammar correction tool with a React/TypeScript frontend and FastAPI backend that processes Markdown files via local LLM servers (LM Studio). The system is designed around **crash-safe chunked processing** with real-time WebSocket updates and **TTS prepass detection**.
 
+**Primary Use Case**: Processing fiction EPUB files (converted to Markdown) for TTS readability - targeting amateur fiction, poor translations, and problematic formatting. Users primarily interact via the web UI for one-shot processing workflows.
+
 ### Key Components
 
 - **Backend** (`backend/app.py`): FastAPI server with WebSocket support, imports core logic from `md_proof.py`
@@ -20,6 +22,15 @@ TTS-Proof is a **local-first** grammar correction tool with a React/TypeScript f
 - **Prepass Engine** (`prepass.py`): TTS problem detector that finds stylized text patterns before grammar correction
   - Functions: `detect_tts_problems()`, `run_prepass()`, `inject_prepass_into_grammar_prompt()`
   - Returns JSON with `replacements` array containing `find`, `replace`, `reason` keys
+- **MDP Package** (`mdp/`): Modular text processing pipeline (Phase 1-3 implementation, Phase 5 planned)
+  - **`markdown_adapter.py`**: AST-based masking via regex fallback - extracts text spans, protects code/links
+  - **`masking.py`**: Sentinel-based content masking with stable token generation
+  - **`prepass_basic.py`**: Unicode normalization, spaced letter joining, hyphenation healing (Phase 2)
+  - **`prepass_advanced.py`**: Casing normalization, punctuation collapse, ellipsis standardization
+  - **`scrubber.py`**: Block detection and removal - author notes, navigation, link farms (Phase 3)
+  - **`appendix.py`**: Formats scrubbed blocks into organized appendix documents
+  - **`grammar_assist.py`**: Optional deterministic grammar corrections with offline engine (Phase 5 - planned)
+  - **`config.py`**: YAML-based configuration with comprehensive defaults for all processing stages
 - **Launcher** (`launch.py`): Cross-platform script that starts both frontend and backend servers
   - Auto-checks Python 3.10+, Node.js 16+, installs dependencies, opens browser
 
@@ -40,6 +51,72 @@ TTS-Proof is a **local-first** grammar correction tool with a React/TypeScript f
 
 ### 2. Text Processing Pipeline
 
+**Three-Phase Architecture**:
+
+**Phase 1: Markdown Masking** (`mdp/markdown_adapter.py` + `mdp/masking.py`)
+
+```python
+# Extract text-only spans, protect code/links/math
+from mdp.markdown_adapter import mask_protected, unmask, extract_text_spans
+masked_text, mask_table = mask_protected(markdown_text)
+# Process only text, never structural elements
+restored = unmask(processed_text, mask_table)
+```
+
+- **Regex-based protection**: Code blocks, inline code, links, images, HTML, math
+- **Stable sentinels**: `__MASKED_0__`, `__MASKED_1__`, etc. for deterministic reconstruction
+- **Text span extraction**: `extract_text_spans()` returns list of safe-to-edit regions
+
+**Phase 2: Unicode & Spacing Normalization** (`mdp/prepass_basic.py`)
+
+```python
+# Deterministic, no LLM required - runs in <0.1s
+from mdp.prepass_basic import normalize_text_nodes
+result, stats = normalize_text_nodes(text, config)
+# Stats: {'control_chars_stripped': 4, 'spaced_words_joined': 3, 'hyphenation_healed': 1}
+```
+
+- **Unicode cleanup**: ZWSP, bidi controls, soft hyphens, BOM removal
+- **Spaced letter joining**: `S p a c e d` → `Spaced` (≥4 letters, smart separators)
+- **Hyphenation healing**: `cre-\nate` → `create` at line breaks
+- **Punctuation normalization**: Configurable quotes/dashes/ellipsis handling
+
+**Phase 3: Content Scrubbing** (`mdp/scrubber.py` + `mdp/appendix.py`)
+
+```python
+# Block-level detection for author notes, navigation, promos
+from mdp.scrubber import scrub_text, BlockCandidate
+from mdp.appendix import format_appendix
+cleaned, candidates, stats = scrub_text(text, config, dry_run=False)
+appendix_doc = format_appendix(candidates, source_file="input.md")
+```
+
+- **Link density analysis**: Detects link farms via character percentage
+- **Keyword matching**: Navigation, promos, watermarks (configurable whitelist)
+- **Position awareness**: Edge blocks (top/bottom 6) vs middle blocks
+- **Appendix generation**: Preserves scrubbed content for manual restoration
+
+**Phase 5: Optional Grammar Assist** (`mdp/grammar_assist.py` - planned)
+
+```python
+# Conservative, deterministic grammar corrections (offline, no LLM)
+from mdp.grammar_assist import apply_grammar_corrections
+corrected, stats = apply_grammar_corrections(text, config, mask_table)
+# Stats: {'typos_fixed': 3, 'spacing_fixed': 5, 'punctuation_fixed': 2, 'rejected': 1}
+```
+
+- **Offline engine**: Uses LanguageTool or similar (no network dependency)
+- **Safe mode only**: Whitelist categories - `TYPOS`, `PUNCTUATION`, `CASING`, `SPACING`, `SIMPLE_AGREEMENT`
+- **Non-interactive**: Auto-applies safe corrections, zero prompts
+- **Text-node scoped**: Only edits text nodes from Phase 1 AST, respects masks
+- **Structural validation**: Post-edit checks ensure mask counts, link/backtick parity unchanged
+- **Deterministic**: Running twice produces identical output
+- **Configurable locale**: Defaults to `en`, supports multi-language (e.g., Icelandic for fiction)
+- **CLI integration**: `--steps mask,prepass-basic,prepass-advanced,grammar` for pipeline chaining
+- **Toggleable**: `grammar_assist.enabled: true` in `md_proof.yaml`
+
+**Legacy URL Masking** (`md_proof.py` - still used by main engine)
+
 ```python
 # Pattern: mask URLs → chunk → process → unmask URLs
 masked, urls = mask_urls(raw_text)
@@ -47,9 +124,8 @@ corrected = extract_between_sentinels(llm_response)
 final = unmask_urls(corrected, urls)
 ```
 
-- **URL masking** prevents LLM from editing links
-- **Chunk size**: 8000 chars default (configurable in frontend)
-- **Markdown preservation**: Never alter code blocks, syntax, or structure
+- **Chunk size**: 8000 chars default (configurable in frontend, validated through testing)
+- **Markdown preservation**: Always use Phase 1 masking for new features
 
 ### 3. WebSocket Communication
 
@@ -93,6 +169,88 @@ final = unmask_urls(corrected, urls)
 - **Temporary files**: Use `tempfile` module, cleanup on completion
 - **Path patterns**: `paths_for(input_path)` generates `.partial` and output paths
 - **Prepass reports**: Stored as JSON with replacement mappings and problem word lists
+- **Directory organization** (see `DIRECTORY_STRUCTURE.md`):
+  - `/testing/` - All tests (unit, stress, data)
+  - `/docs/` - Analysis reports, guides
+  - `/config/` - LM Studio presets, YAML configs
+  - `/prompts/` - Current, upgraded, and versioned prompts
+  - `/mdp/` - Modular processing pipeline (Phase 1-3)
+
+### 6. Configuration System
+
+**YAML-based with comprehensive defaults** (`mdp/config.py`):
+
+```python
+from mdp.config import load_config
+config = load_config("custom_config.yaml")  # or None for defaults
+```
+
+**Key config sections**:
+
+- **`unicode_form`**: NFKC normalization (default)
+- **`scrubber.categories`**: Enable/disable detection of author notes, navigation, promos, link farms
+- **`scrubber.whitelist`**: Protect specific headings ("Translator's Cultural Notes") or domains
+- **`prepass_advanced.casing`**: Shouting normalization with acronym whitelist (NASA, GPU, JSON, etc.)
+- **`prepass_advanced.punctuation`**: Ellipsis style, quote style, sentence spacing
+- **All settings have sensible defaults** - config file optional
+
+**Typical fiction EPUB configuration**:
+
+```yaml
+# Optimized for amateur fiction, poor translations, TTS readability
+unicode_form: "NFKC"
+scrubber:
+  enabled: true
+  categories:
+    authors_notes: true # Remove author notes at chapter ends
+    navigation: true # Remove "Next Chapter" links
+    promos_ads_social: true # Remove Patreon/Discord promos
+    link_farms: true # Remove link collections
+prepass_advanced:
+  casing:
+    normalize_shouting: true # Fix ALL CAPS dialogue
+  punctuation:
+    ellipsis: "three-dots" # Standardize ellipsis for TTS
+    collapse_runs: true # Fix "!!!!!" → "!"
+```
+
+## Git Workflow & Branching Strategy
+
+**Branch Structure**:
+
+- **`main`**: Production-ready code, protected branch (no direct commits)
+- **`dev`**: Integration branch for features, all PRs target here
+- **`feat/*`**: Feature branches created from `dev`
+
+**Feature Development Pattern** (required for Phase 5 and beyond):
+
+```bash
+# Start new feature
+git checkout dev && git pull
+git checkout -b feat/phase5-grammar-assist
+
+# Work on feature (commit frequently)
+git add . && git commit -m "feat: implement grammar_assist.py"
+
+# Push and open PR into dev
+git push -u origin feat/phase5-grammar-assist
+# Open PR: feat/phase5-grammar-assist → dev (NOT main)
+```
+
+**PR Requirements**:
+
+- **Target**: Always `dev`, never `main`
+- **Title**: Clear, descriptive (e.g., "feat: Add Phase 5 Grammar Assist")
+- **Checklist**: Include acceptance criteria in PR description
+- **Size**: Keep PRs small and reviewable
+- **Merge**: Squash commits on merge to keep history clean
+
+**Critical Rules**:
+
+- ❌ **Never commit directly to `main`**
+- ❌ **Never open PR into `main`** (always target `dev`)
+- ✅ **Always branch from `dev`** for new features
+- ✅ **Use descriptive branch names** (`feat/`, `fix/`, `docs/`, etc.)
 
 ## Development Workflows
 
@@ -113,11 +271,41 @@ cd frontend && npm run dev
 
 ### Testing
 
-- **Backend**: Run `python test_app.py` for API endpoint tests
-- **CLI tool**: Standalone `md_proof.py` has comprehensive built-in testing
-- **Prepass**: `test_prepass.py` and `test_prepass_integration.py` for TTS detection validation
-- **Integration**: `test_integration.py` for end-to-end workflow testing
-- **Sentinel parsing**: `test_sentinel.py` for LLM response extraction
+**Pytest Configuration** (`pytest.ini`) - **Fast tests by default**:
+
+```bash
+pytest                    # Run fast tests only (33 tests in <1s)
+pytest -m ""              # Run ALL tests including LLM/slow/network
+pytest -m "llm"           # Run only LLM-dependent tests
+pytest -m "slow"          # Run only slow tests
+pytest -m "network"       # Run only network tests
+pytest -vv                # Verbose output
+pytest --cov=mdp          # With coverage report
+```
+
+**Test Markers** (defined in `pytest.ini`):
+
+- `@pytest.mark.llm` - Requires LLM server (skipped by default)
+- `@pytest.mark.slow` - Takes >5 seconds (skipped by default)
+- `@pytest.mark.network` - Requires network access (skipped by default)
+
+**VS Code Tasks**: 8 pre-configured pytest tasks via Command Palette → "Run Task"
+
+- **"Pytest: Fast Tests (Default)"** ← Use this during development
+- "Pytest: All Tests (Including LLM)"
+- "Pytest: LLM Tests Only"
+- "Pytest: With Coverage"
+
+**Test Structure** (`testing/`):
+
+- **`unit_tests/`**: Fast unit tests (no LLM required)
+  - `test_prepass_basic.py` - Phase 2 unicode/spacing normalization
+  - `test_scrubber.py` - Phase 3 block detection
+  - `test_prepass_integration.py` - Full prepass workflow
+  - `test_sentinel.py` - LLM response extraction
+- **`stress_tests/`**: Advanced testing framework with A/B comparison
+- **`test_data/`**: Sample inputs, references, stress test datasets
+- **Backend**: `python backend/test_app.py` for API endpoint tests
 - **No frontend tests** currently implemented
 
 ### Dependencies
@@ -126,6 +314,8 @@ cd frontend && npm run dev
 - **Frontend**: React 18, TypeScript, Tailwind, Vite, Lucide icons, react-router-dom
 - **Python**: 3.10+ required (checked by launcher)
 - **Node.js**: 16+ required for frontend build
+
+**Note**: Underlying libraries may be replaced in the future for efficiency or simplicity (e.g., Bun instead of Node.js for faster installs, alternative bundlers for single-click launching). Avoid tight coupling to specific build tools or runtimes where possible.
 
 ## Component Patterns
 
@@ -174,8 +364,8 @@ cd frontend && npm run dev
    - Frontend establishes WS connection via `apiService.connectWebSocket(clientId)`
    - Backend checks `if client_id in manager.active_connections` before sending
 4. **Chunk processing**: Always preserve Markdown structure, never edit syntax elements
-   - Use `FENCE_RE` regex to detect code blocks, handle as `("code", content)` tuples
-   - Mask URLs with `mask_urls()` before processing, unmask with `unmask_urls()` after
+   - **New features**: Use Phase 1 masking via `mdp.markdown_adapter.mask_protected()`
+   - **Legacy code**: Use `FENCE_RE` regex + `mask_urls()` before processing, unmask with `unmask_urls()` after
 5. **Resume functionality**: Check for `.partial` files to continue interrupted processing
    - Generated by `write_ckpt(partial_path, content)` after each chunk
    - Loaded via `load_ckpt(partial_path)` on resume
@@ -183,6 +373,10 @@ cd frontend && npm run dev
    - `extract_between_sentinels()` returns original text if sentinels not found
 7. **CORS restrictions**: Backend only allows `localhost:5173` and `localhost:5174` origins
    - Update `allow_origins` in `app.add_middleware(CORSMiddleware, ...)` for production
+8. **Test markers**: Always use `pytest` alone for fast feedback - don't run slow/LLM tests during development
+   - Fast tests run in <1s, provide 33 tests of core functionality
+   - Use `pytest -m "llm"` only when testing LLM integration features
+9. **Module imports**: `pytest.ini` sets `pythonpath = .` - import mdp package directly: `from mdp.scrubber import scrub_text`
 
 ## Advanced Testing & Optimization Framework
 
