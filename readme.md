@@ -171,6 +171,30 @@ Choose the launcher that works best for your system!
 
 ---
 
+## Phase 1: AST & Masking
+
+To improve the accuracy of grammar correction and protect parts of the document that should not be altered, a new processing step has been introduced. This step uses a Markdown Abstract Syntax Tree (AST) to identify and mask protected elements like code blocks, links, and HTML.
+
+This ensures that only plain text is sent to the language model for correction, preserving the integrity of the document's structure.
+
+### Demo the Masking Feature
+
+You can test the masking and unmasking process using the command-line interface:
+
+```bash
+python md_proof.py --in testing/test_data/ast/fences_inline.md --out /tmp/out.md --steps mask,unmask
+```
+
+This command will:
+1.  Read the input file.
+2.  **Mask** all protected elements (code fences, inline code, etc.) and save the intermediate state.
+3.  **Unmask** the content, restoring it to its original form.
+4.  Write the final, unmasked content to `/tmp/out.md`.
+
+If the process is successful, the output file will be identical to the input file.
+
+---
+
 ## 🏗️ Architecture
 
 ```
