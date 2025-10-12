@@ -9,3 +9,5 @@ Skip: normal text, usernames, punctuation, code.
 
 Format:
 {"replacements": [{"find": "text", "replace": "fixed", "reason": "unicode"}]}
+
+/no_think
