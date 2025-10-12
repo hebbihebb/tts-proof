@@ -64,6 +64,26 @@ DEFAULT_CONFIG = {
         'safe_categories': ['TYPOS', 'PUNCTUATION', 'CASING', 'SPACING', 'SIMPLE_AGREEMENT'],
         'interactive': False,  # Always non-interactive (auto-apply)
     },
+    'detector': {
+        'enabled': True,
+        'api_base': 'http://192.168.8.104:1234/v1',  # Network LM Studio server
+        'model': 'qwen2.5-1.5b-instruct',  # Qwen/Qwen2.5-1.5B-Instruct-GGUF Q4_K_M
+        'max_context_tokens': 1024,
+        'max_output_chars': 2000,
+        'timeout_s': 8,
+        'retries': 1,
+        'temperature': 0.2,
+        'top_p': 0.9,
+        'json_max_items': 16,
+        'max_reason_chars': 64,
+        'allow_categories': ['TTS_SPACED', 'UNICODE_STYLIZED', 'CASE_GLITCH', 'SIMPLE_PUNCT'],
+        'block_categories': ['STYLE', 'REWRITE', 'MEANING_CHANGE'],
+        'locale': 'en',
+        # Chunking parameters
+        'max_chunk_size': 600,
+        'overlap_size': 50,
+        'max_non_alpha_ratio': 0.5,
+    },
 }
 
 def load_config(path: str = None) -> Dict[str, Any]:
