@@ -296,6 +296,165 @@ All removed blocks are preserved in the appendix file with:
 
 ---
 
+## Phase 4 — Advanced Pre-Pass Policies (Casing / Punctuation / Units)
+
+**Policy-Driven Deterministic Cleanup**
+
+Phase 4 introduces an advanced pre-pass that applies configurable policies to normalize casing, punctuation, and numbers/units spacing. It operates exclusively on text nodes (not code blocks, links, or URLs) and runs after basic pre-pass, before LLM-based grammar correction.
+
+### Policy Areas
+
+The advanced pre-pass handles four major categories:
+
+#### 1. **Casing Normalization**
+- **All-Caps Detection**: Identifies and normalizes SHOUTING text (≥4 characters by default)
+- **Acronym Whitelist**: Respects technical acronyms (NASA, JSON, API, HTML, TTS, etc.)
+- **Protected Lexicon**: Preserves special onomatopoeia, names, and intentional styling
+- **Title Case**: Converts `MAGNIFICENT DRAGON` → `Magnificent Dragon`
+
+Example:
+```markdown
+BEFORE: This is TERRIBLE! The ANCIENT DRAGON appears, and NASA launches.
+AFTER:  This is Terrible! The Ancient Dragon appears, and NASA launches.
+```
+
+#### 2. **Punctuation Policies**
+- **Run Collapse**: Reduces excessive punctuation (`!!!!` → `!`, `??!!` → `?!`)
+- **Ellipsis Normalization**: Standardizes `…` ↔ `...` (three dots or Unicode)
+- **Quote Style**: Converts curly quotes `""` to straight `""` (or vice versa)
+- **Sentence Spacing**: Single/double space after periods
+
+Collapse Policies:
+- `first-only`: `!!!!! → !` (keep only first character)
+- `first-of-each`: `??!! → ?!` (keep first of each punctuation type)
+
+#### 3. **Numbers & Units**
+- **Percent Joining**: Removes space before % (`23 %` → `23%`)
+- **Unit Spacing**: Normalizes space between numbers and units
+  - Temperatures: `23 °C`, `73.4 °F`
+  - Distances: `5 km`, `15 cm`
+  - Weights: `500 g`, `1.5 kg`
+  - Time: `250 ms`
+- **Time Format**: Standardizes time expressions
+  - `5pm` → `5 p.m.`
+  - `9AM` → `9 a.m.`
+  - `12 PM` → `12 p.m.`
+
+#### 4. **Footnote Markers** (Optional)
+- **Inline Removal**: Optionally removes `[^1]`, `[1]`, `(1)` markers
+- **Definition Preservation**: Always preserves footnote definitions (markers followed by `:`)
+
+### Usage Examples
+
+**Basic Usage**:
+```bash
+python md_proof.py --in file.md --out clean.md --steps prepass-advanced --report
+```
+
+**Full Pipeline** (with masking):
+```bash
+python md_proof.py --in story.md --out final.md \
+  --steps mask,prepass-basic,prepass-advanced,unmask --report
+```
+
+**Integrated Workflow** (all pre-processing stages):
+```bash
+python md_proof.py --in story.md --out final.md \
+  --steps mask,prepass-basic,prepass-advanced,scrub,unmask \
+  --appendix Appendix.md --report
+```
+
+### Configuration
+
+Configure policy behavior via YAML config file:
+
+```yaml
+prepass_advanced:
+  enabled: true
+  
+  casing:
+    normalize_shouting: true
+    shouting_min_len: 4               # Minimum caps word length
+    acronym_whitelist:
+      - NASA
+      - GPU
+      - JSON
+      - HTML
+      - TTS
+      - API
+      - URL
+      - HTTP
+      - HTTPS
+      - CSS
+      - SQL
+    protected_lexicon:
+      - Aaahahaha                      # Onomatopoeia
+      - BLUH
+      - Reykjavík                      # Icelandic names
+      - Þór
+      - AAAAAA                         # Intentional screaming
+  
+  punctuation:
+    collapse_runs: true
+    runs_policy: first-of-each         # or 'first-only'
+    ellipsis: three-dots               # or 'unicode' for …
+    quotes: straight                   # or 'curly'
+    apostrophe: straight
+    space_after_sentence: single       # or 'double'
+  
+  numbers_units:
+    join_percent: true                 # 23 % → 23%
+    space_before_unit: normal          # 'normal' (5 km), 'none' (5km)
+    time_style: p.m.                   # 'p.m.', 'PM', or 'pm'
+    locale: en
+  
+  footnotes:
+    remove_inline_markers: false       # Set true to remove [^1] markers
+```
+
+### Idempotency & Structure Preservation
+
+- **Idempotent**: Running twice produces identical output with zero changes on second pass
+- **Markdown-Safe**: Preserves code blocks, inline code, URLs, links, HTML, tables, headings
+- **Text-Node-Only**: Only processes human-readable text content
+- **Maskable**: Works seamlessly with AST-based masking system
+
+### Report Output
+
+With `--report` flag, get detailed change counts:
+
+```
+Prepass Advanced Report:
+  - casing_normalized: 12
+  - runs_collapsed: 4
+  - ellipsis: 8
+  - quotes: 16
+  - spacing: 23
+  - percent_joined: 5
+  - unit_spaces: 7
+  - times: 3
+  - footnotes_removed: 0
+```
+
+### Testing & Validation
+
+Run comprehensive test suite:
+```bash
+pytest testing/unit_tests/test_prepass_advanced.py -v
+```
+
+**10 test methods** covering:
+- Casing with acronym/protected lexicon respect
+- Punctuation run collapse policies
+- Ellipsis and quote normalization
+- Numbers/units spacing and percent joining
+- Time format transformation
+- Optional footnote removal
+- Markdown structure preservation
+- Idempotency (second pass = zero changes)
+
+---
+
 ## 🏗️ Architecture
 
 ```
