@@ -2,7 +2,7 @@
 
 **Current Date**: October 13, 2025  
 **Branch**: `dev`  
-**Status**: PR-1 Merged ✅
+**Status**: PR-2 Merged ✅
 
 ---
 
@@ -27,41 +27,24 @@
 **Tests Added**: 6 integration tests  
 **Tests Status**: 308 fast tests passing ✅
 
+### PR-2: Report Display + Diff Viewer ✅ MERGED
+- Backend report/diff endpoints (4 new endpoints)
+- Frontend ReportDisplay component (formatted stats modal)
+- Frontend DiffViewer component (unified diff with colors)
+- Results section in App.tsx (appears after completion)
+- Artifact download functionality
+- Blessed models expanded (3 models per role)
+- Integration tests (4 new tests)
+- Manual smoke testing (qwen3-4b-instruct-2507)
+
+**Files Changed**: 13 files, +1575 lines, -14 lines  
+**Tests Added**: 4 integration tests  
+**Models Added**: qwen3-4b-instruct-2507, qwen3-8b  
+**Manual Test**: ✅ All 3 test cases passing with 4B model
+
 ---
 
 ## 📋 Remaining Work
-
-### PR-2: Pretty Report Display & Diff Viewer
-**Goal**: Transform raw stats into user-friendly visualizations
-
-**Tasks**:
-1. **Report Formatter Component** (`frontend/src/components/ReportDisplay.tsx`)
-   - Human-readable stats summary
-   - Per-step breakdown with icons
-   - Success/warning/error indicators
-   - Collapsible sections for detailed stats
-   
-2. **Diff Viewer Component** (`frontend/src/components/DiffViewer.tsx`)
-   - Side-by-side comparison (input vs output)
-   - Syntax highlighting for Markdown
-   - Line-by-line diff with colors
-   - Search/filter functionality
-   
-3. **Backend Endpoints**
-   - `GET /api/runs/{run_id}/report` - Formatted report data
-   - `GET /api/runs/{run_id}/diff` - Diff between input/output
-   
-4. **Integration**
-   - Add to App.tsx after pipeline completion
-   - Store run_id from WebSocket messages
-   - Display report in modal or dedicated section
-
-**Acceptance Criteria**:
-- [ ] Report shows human-readable stats for all steps
-- [ ] Diff viewer highlights changes in green/red
-- [ ] Markdown syntax preserved in diff view
-- [ ] Collapsible sections for large reports
-- [ ] Download buttons for report/diff
 
 ### PR-3: Artifact Management & Downloads
 **Goal**: Access pipeline artifacts (logs, plans, reports) via UI
@@ -75,7 +58,7 @@
    
 2. **Backend Endpoints**
    - `GET /api/runs/{run_id}/artifacts` - List all artifacts
-   - `GET /api/runs/{run_id}/artifact/{filename}` - Download specific file
+   - `GET /api/runs/{run_id}/artifact/{filename}` - Download specific file (already exists as `/api/artifact`)
    - `GET /api/runs` - List all run IDs (history)
    
 3. **Run History Component** (`frontend/src/components/RunHistory.tsx`)
@@ -102,10 +85,10 @@
 ```
 PR-0: Audit & Plan                    ████████████████████ 100% ✅
 PR-1: Step Toggles + Wiring           ████████████████████ 100% ✅
-PR-2: Report Display + Diff Viewer    ░░░░░░░░░░░░░░░░░░░░   0%
+PR-2: Report Display + Diff Viewer    ████████████████████ 100% ✅
 PR-3: Artifact Management             ░░░░░░░░░░░░░░░░░░░░   0%
 ────────────────────────────────────────────────────────────
-Overall Phase 11 Progress:            ██████████░░░░░░░░░░  50%
+Overall Phase 11 Progress:            ███████████████░░░░░  75%
 ```
 
 ---
@@ -115,19 +98,23 @@ Overall Phase 11 Progress:            ██████████░░░░
 ### Working Features ✅
 - Upload Markdown files via web UI
 - Select pipeline steps via toggles (7 steps)
-- Choose detector/fixer models from blessed models
+- Choose detector/fixer models from blessed models (3 options each)
+  - qwen2.5-1.5b-instruct (fast, lower accuracy)
+  - qwen3-4b-instruct-2507 (balanced, recommended)
+  - qwen3-8b (slow, highest quality)
 - Run full pipeline with real-time progress
 - WebSocket progress updates with per-step tracking
+- View formatted report after completion
+- View unified diff with color-coded changes
+- Download artifacts (output, plan, report JSON)
 - Graceful error handling (empty plans, model errors)
 - Artifacts written to `~/.mdp/runs/{run_id}/`
-- Integration tests for web runner
+- Integration tests for web runner (10 tests total)
 
 ### Not Yet Implemented ⏳
-- Human-readable report display (raw stats only)
-- Diff viewer (no visual comparison yet)
-- Artifact browser (files exist but no UI access)
+- Artifact browser (files exist but no UI to browse all)
 - Run history (no persistence across sessions)
-- Download buttons for artifacts
+- Batch artifact downloads (individual only)
 
 ### Known Issues ⚠️
 - **LM Studio JIT Loading**: Models must be pre-loaded (external issue)
