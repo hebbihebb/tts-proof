@@ -328,9 +328,28 @@ class JobStatus(BaseModel):
     can_resume: bool = False
     error: Optional[str] = None
 
+class RunRequest(BaseModel):
+    """Request model for unified /api/run endpoint."""
+    input_path: str
+    steps: List[str]
+    models: Dict[str, str]  # {"detector": "model-name", "fixer": "model-name"}
+    report_pretty: bool = True
+    client_id: Optional[str] = None
+
+class RunResponse(BaseModel):
+    """Response model for unified /api/run endpoint."""
+    run_id: str
+    status: str  # 'started', 'processing', 'completed', 'error'
+
+class BlessedModelsResponse(BaseModel):
+    """Response model for blessed models endpoint."""
+    detector: List[str]
+    fixer: List[str]
+
 # Global state for processing jobs
 processing_jobs: Dict[str, dict] = {}
 prepass_jobs: Dict[str, dict] = {}
+run_jobs: Dict[str, dict] = {}  # Track new unified run jobs
 
 @app.get("/")
 async def root():
@@ -624,6 +643,244 @@ async def save_prepass_prompt(request: dict):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save prepass prompt: {str(e)}")
+
+# ============================================================================
+# NEW UNIFIED PIPELINE ENDPOINTS (Phase 11 PR-1)
+# ============================================================================
+
+@app.get("/api/blessed-models", response_model=BlessedModelsResponse)
+async def get_blessed_models():
+    """
+    Get blessed model lists for detector and fixer roles.
+    Returns models validated for use in the pipeline.
+    """
+    from mdp.config import get_blessed_models
+    
+    blessed = get_blessed_models()
+    return BlessedModelsResponse(
+        detector=blessed['detector'],
+        fixer=blessed['fixer']
+    )
+
+@app.post("/api/run", response_model=RunResponse)
+async def run_pipeline_endpoint(request: RunRequest):
+    """
+    Unified pipeline run endpoint.
+    Calls mdp.__main__.run_pipeline() directly with specified steps and models.
+    Streams progress via WebSocket using existing schema with new source values.
+    """
+    from mdp import config as mdp_config
+    from mdp.__main__ import run_pipeline
+    
+    # Generate run ID
+    run_id = str(uuid.uuid4())
+    client_id = request.client_id or run_id
+    
+    # Validate blessed models
+    blessed = mdp_config.get_blessed_models()
+    detector_model = request.models.get('detector')
+    fixer_model = request.models.get('fixer')
+    
+    if detector_model and detector_model not in blessed['detector']:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Detector model '{detector_model}' is not blessed. Allowed: {blessed['detector']}"
+        )
+    
+    if fixer_model and fixer_model not in blessed['fixer']:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Fixer model '{fixer_model}' is not blessed. Allowed: {blessed['fixer']}"
+        )
+    
+    # Validate input file exists
+    input_path = Path(request.input_path)
+    if not input_path.exists():
+        raise HTTPException(status_code=404, detail=f"Input file not found: {request.input_path}")
+    
+    # Initialize run job tracking
+    run_jobs[run_id] = {
+        "status": "started",
+        "client_id": client_id,
+        "input_path": str(input_path),
+        "steps": request.steps,
+        "models": request.models,
+        "progress": 0,
+        "current_step": None,
+        "result": None,
+        "error": None
+    }
+    
+    # Start processing in background
+    asyncio.create_task(run_pipeline_job(run_id, request))
+    
+    return RunResponse(run_id=run_id, status="started")
+
+async def run_pipeline_job(run_id: str, request: RunRequest):
+    """
+    Execute the pipeline orchestrator with WebSocket progress streaming.
+    Uses the same run_pipeline() function as CLI for byte-identical output.
+    """
+    from mdp import config as mdp_config
+    from mdp.__main__ import run_pipeline
+    import traceback
+    
+    client_id = run_jobs[run_id]["client_id"]
+    
+    try:
+        # Load input text
+        input_path = Path(request.input_path)
+        with open(input_path, 'r', encoding='utf-8') as f:
+            input_text = f.read()
+        
+        # Load config and override with requested models
+        config = mdp_config.load_config(None)  # Use defaults
+        
+        # Override detector/fixer endpoints and models from request
+        if 'detect' in request.steps or 'apply' in request.steps:
+            detector_model = request.models.get('detector')
+            if detector_model:
+                if 'detector' not in config:
+                    config['detector'] = {}
+                config['detector']['model'] = detector_model
+        
+        if 'fix' in request.steps:
+            fixer_model = request.models.get('fixer')
+            if fixer_model:
+                if 'fixer' not in config:
+                    config['fixer'] = {}
+                config['fixer']['model'] = fixer_model
+        
+        # Send initial progress
+        await manager.send_message(client_id, {
+            "type": "progress",
+            "source": "pipeline",
+            "progress": 0,
+            "message": f"Starting pipeline with {len(request.steps)} steps...",
+            "steps": request.steps
+        })
+        
+        # Track progress through steps
+        total_steps = len(request.steps)
+        
+        for step_idx, step in enumerate(request.steps):
+            run_jobs[run_id]["current_step"] = step
+            progress = int((step_idx / total_steps) * 100)
+            run_jobs[run_id]["progress"] = progress
+            
+            # Map step names to source names for WebSocket
+            source_map = {
+                'mask': 'mask',
+                'prepass-basic': 'prepass-basic',
+                'prepass-advanced': 'prepass-advanced',
+                'scrubber': 'scrubber',
+                'grammar': 'grammar',
+                'detect': 'detect',
+                'apply': 'apply',
+                'fix': 'fix'
+            }
+            source = source_map.get(step, step)
+            
+            await manager.send_message(client_id, {
+                "type": "progress",
+                "source": source,
+                "progress": progress,
+                "message": f"Running step {step_idx + 1}/{total_steps}: {step}",
+                "current_step": step
+            })
+        
+        # Run the pipeline (this calls the same orchestrator as CLI)
+        processed_text, combined_stats = run_pipeline(
+            input_text=input_text,
+            steps=request.steps,
+            config=config
+        )
+        
+        # Write output to artifacts directory
+        artifacts_dir = Path.home() / '.mdp' / 'runs' / run_id
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+        
+        output_path = artifacts_dir / f"{input_path.stem}_processed.md"
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(processed_text)
+        
+        # Write stats
+        stats_path = artifacts_dir / 'stats.json'
+        with open(stats_path, 'w', encoding='utf-8') as f:
+            json.dump(combined_stats, f, indent=2)
+        
+        # Update job status
+        run_jobs[run_id].update({
+            "status": "completed",
+            "progress": 100,
+            "result": {
+                "output_path": str(output_path),
+                "stats_path": str(stats_path),
+                "stats": combined_stats,
+                "exit_code": 0
+            }
+        })
+        
+        # Send completion message
+        await manager.send_message(client_id, {
+            "type": "completed",
+            "source": "pipeline",
+            "progress": 100,
+            "message": "Pipeline completed successfully",
+            "output_path": str(output_path),
+            "stats": combined_stats,
+            "exit_code": 0
+        })
+        
+    except ConnectionError as e:
+        # Model server unreachable (exit code 2)
+        error_msg = f"Model server unreachable: {str(e)}"
+        run_jobs[run_id].update({
+            "status": "error",
+            "error": error_msg,
+            "result": {"exit_code": 2}
+        })
+        
+        await manager.send_message(client_id, {
+            "type": "error",
+            "source": run_jobs[run_id].get("current_step", "pipeline"),
+            "message": error_msg,
+            "exit_code": 2
+        })
+        
+    except ValueError as e:
+        # Validation failed (exit code 3) or plan parse error (exit code 4)
+        error_msg = str(e)
+        exit_code = 4 if "parse" in error_msg.lower() else 3
+        
+        run_jobs[run_id].update({
+            "status": "error",
+            "error": error_msg,
+            "result": {"exit_code": exit_code}
+        })
+        
+        await manager.send_message(client_id, {
+            "type": "error",
+            "source": run_jobs[run_id].get("current_step", "pipeline"),
+            "message": error_msg,
+            "exit_code": exit_code
+        })
+        
+    except Exception as e:
+        # Unexpected error
+        error_msg = f"Pipeline failed: {str(e)}\n{traceback.format_exc()}"
+        run_jobs[run_id].update({
+            "status": "error",
+            "error": error_msg,
+            "result": {"exit_code": 1}
+        })
+        
+        await manager.send_message(client_id, {
+            "type": "error",
+            "source": run_jobs[run_id].get("current_step", "pipeline"),
+            "message": str(e),
+            "exit_code": 1
+        })
 
 @app.post("/api/process/{client_id}")
 async def process_text(client_id: str, request: ProcessRequest):
