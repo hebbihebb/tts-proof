@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 def split_long_node(text: str, max_chars: int = 600) -> List[str]:
     """
     Split text node into sentence-like spans if needed.
+    Simple chunking that preserves all characters.
     
     Args:
         text: Text to split
@@ -30,45 +31,50 @@ def split_long_node(text: str, max_chars: int = 600) -> List[str]:
     if len(text) <= max_chars:
         return [text]
     
-    # Simple sentence splitter - split on sentence boundaries
-    # Pattern: period/exclamation/question followed by space and capital letter
-    sentence_pattern = r'(?<=[.!?])\s+(?=[A-Z])'
-    sentences = re.split(sentence_pattern, text)
-    
+    # Simple chunking: try to break at sentence boundaries when possible
+    # But prioritize preserving all content over perfect sentence breaks
     spans = []
-    current_span = ""
+    start = 0
     
-    for sentence in sentences:
-        if len(current_span) + len(sentence) <= max_chars:
-            current_span += sentence
+    while start < len(text):
+        # Take a chunk of max_chars
+        end = start + max_chars
+        
+        if end >= len(text):
+            # Last chunk
+            spans.append(text[start:])
+            break
+        
+        # Try to find a sentence boundary (. ! ?) followed by space
+        # Look backwards from end position
+        chunk = text[start:end]
+        best_break = -1
+        
+        for i in range(len(chunk) - 1, max(0, len(chunk) - 100), -1):
+            if chunk[i] in '.!?' and i + 1 < len(chunk) and chunk[i + 1] == ' ':
+                best_break = i + 2  # Include the space
+                break
+        
+        if best_break > 0:
+            # Found a good break point
+            spans.append(text[start:start + best_break])
+            start += best_break
         else:
-            if current_span:
-                spans.append(current_span)
-            current_span = sentence
+            # No sentence boundary found, try to break at a space
+            for i in range(len(chunk) - 1, max(0, len(chunk) - 50), -1):
+                if chunk[i] == ' ':
+                    best_break = i + 1  # Include the space
+                    break
+            
+            if best_break > 0:
+                spans.append(text[start:start + best_break])
+                start += best_break
+            else:
+                # No good break found, just take max_chars
+                spans.append(text[start:end])
+                start = end
     
-    if current_span:
-        spans.append(current_span)
-    
-    # Fallback: if any span is still too long, split on whitespace
-    final_spans = []
-    for span in spans:
-        if len(span) <= max_chars:
-            final_spans.append(span)
-        else:
-            # Split long span on whitespace
-            words = span.split()
-            temp_span = ""
-            for word in words:
-                if len(temp_span) + len(word) + 1 <= max_chars:
-                    temp_span += (" " if temp_span else "") + word
-                else:
-                    if temp_span:
-                        final_spans.append(temp_span)
-                    temp_span = word
-            if temp_span:
-                final_spans.append(temp_span)
-    
-    return final_spans if final_spans else [text]
+    return spans
 
 
 def fix_span(
