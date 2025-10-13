@@ -295,6 +295,8 @@ Examples:
                        help='Comma-separated pipeline steps (default: mask,prepass-basic)')
     parser.add_argument('--report', type=Path, 
                        help='Output JSON report file with statistics')
+    parser.add_argument('--report-pretty', action='store_true',
+                       help='Print human-readable report summary after JSON report')
     parser.add_argument('--plan', type=Path,
                        help='Output JSON plan file (for detector step)')
     parser.add_argument('--print-plan', action='store_true',
@@ -387,6 +389,7 @@ Examples:
         print(json.dumps(plan_data, indent=2))
     
     # Write report
+    report_data = None
     if args.report:
         report_data = {
             'input_file': str(args.input_file),
@@ -396,6 +399,22 @@ Examples:
         }
         args.report.write_text(json.dumps(report_data, indent=2), encoding='utf-8')
         logger.info(f"Wrote report to: {args.report}")
+    
+    # Print pretty report if requested
+    if args.report_pretty:
+        from report import render_pretty
+        
+        # Build report data if not already created
+        if report_data is None:
+            report_data = {
+                'input_file': str(args.input_file),
+                'output_file': str(args.output) if args.output else None,
+                'steps': steps,
+                'statistics': stats
+            }
+        
+        pretty_output = render_pretty(report_data)
+        print(pretty_output)
     
     # Print summary
     print("\n=== Pipeline Summary ===")
