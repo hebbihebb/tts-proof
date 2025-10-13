@@ -308,41 +308,49 @@ Apply the plan deterministically and reject any change that could break structur
 
 # Phase 8 — [[8. Fixer (Bigger Model → Light Polish on Text Nodes)]]
 
-**Status**: 🎯 **NEXT** (Estimated: 4-6 hours)
+**Status**: ✅ **COMPLETE** (Completed: October 13, 2025)
 
 **Feature Description**  
 A careful, minimal polish pass on already-sanitized text nodes.
 
-**Suggested Approach**
+**Implementation Summary**
 
-- Short instructions; tight token cap; reject outputs that grow too much or alter structure.
-- Never feed Markdown—only the node text.
-- **Reuse existing infrastructure**: `mdp/config.py`, `mdp/__main__.py`, Phase-7 validators
+- Conservative post-correction polish using Qwen2.5-1.5B-Instruct
+- Multiple safety guardrails: forbidden tokens, length limits (20% node, 5% file)
+- Structural validation reuses Phase 7 validators
+- Exit codes: 0 (success), 2 (unreachable), 3 (validation failure)
 
-**Tasks**
+**Completed Tasks**
 
-1. Create `fixer/` module: `client.py`, `prompt.py`, `fixer.py`, `guards.py`
-2. Instruction template + stop sequences; 2–3 tiny before/after examples
-3. Post-checks: reuse Phase-7 structural validators + length delta guard (≤20%)
-4. CLI integration in `mdp/__main__.py`: `--steps fix` or `--steps detect,apply,fix`
-5. Extend `mdp/config.py` with fixer section (don't create separate config file)
+1. ✅ Created `fixer/` module: `client.py`, `prompt.py`, `fixer.py`, `guards.py` (735 lines)
+2. ✅ Conservative prompt template with locale support
+3. ✅ Safety validators: forbidden tokens, length limits, fail-safe to original
+4. ✅ CLI integration in `mdp/__main__.py`: `--steps fix` step
+5. ✅ Extended `mdp/config.py` with comprehensive fixer section
 
-**Acceptance**
+**Test Results**
 
-- No chatter; plain text only; failed outputs are safely discarded
-- Exit code `2` for model unreachable (consistent with Phase 6 detector)
-- All outputs pass Phase-7 structural validation
+- ✅ 55 unit tests (100% passing, ~0.6s execution)
+- ✅ Zero LLM dependency for testing (all mocked)
+- ✅ Full suite: 272/272 tests passing
+- ✅ Test coverage: guards (28), logic (16), client (11)
 
 **Deliverables**
 
-- `fixer/` module with client, guardrails, tests
-- Integration with `mdp/__main__.py` pipeline
-- Unit tests in `testing/unit_tests/test_fixer_*.py`
+- ✅ `fixer/` module with client, guardrails, comprehensive tests
+- ✅ Integration with `mdp/__main__.py` pipeline
+- ✅ Unit tests in `testing/unit_tests/test_fixer_*.py`
+- ✅ Documentation: `docs/PHASE8_COMPLETION_REPORT.md`
 
-**Risks/Checks**
+**Acceptance Criteria Met**
 
-- Hallucinated rewrites under stress; keep caps tight and validate
-- **Corrected**: Use exit code `2` (not `6`) for consistency with detector
+- ✅ No chatter; plain text only; failed outputs safely discarded
+- ✅ Exit code `2` for model unreachable (consistent with Phase 6 detector)
+- ✅ Exit code `3` for validation failure
+- ✅ All outputs pass Phase 7 structural validation
+- ✅ Operates only on text nodes, never touches Markdown structure
+
+**Branch**: `feat/phase8-fixer` → `dev` (PR #10, merged October 13, 2025)
     
 
 ---
