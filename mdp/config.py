@@ -123,3 +123,27 @@ def load_config(path: str = None) -> Dict[str, Any]:
     else:
         config = DEFAULT_CONFIG
     return config
+
+
+def get_blessed_models() -> Dict[str, list[str]]:
+    """
+    Returns blessed model lists for detector and fixer roles.
+    
+    MVP Phase 11 focuses on Qwen2.5-1.5B-Instruct for both roles.
+    These models have been tested and validated for the pipeline.
+    
+    Returns:
+        Dictionary with 'detector' and 'fixer' keys, each containing
+        a list of validated model names.
+        
+    Example:
+        >>> models = get_blessed_models()
+        >>> models['detector']
+        ['qwen2.5-1.5b-instruct']
+        >>> models['fixer']
+        ['qwen2.5-1.5b-instruct']
+    """
+    return {
+        'detector': ['qwen2.5-1.5b-instruct'],
+        'fixer': ['qwen2.5-1.5b-instruct']
+    }
