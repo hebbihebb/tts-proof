@@ -581,9 +581,62 @@ uvicorn app:app --host 0.0.0.0 --port 8000
 
 ---
 
-## � TODO / Future Enhancements
+## 📊 Phase Status & Roadmap
 
-### 🎯 UI/UX Improvements
+### ✅ Completed Phases
+
+- **Phase 1**: AST-based Markdown masking (code blocks, links, HTML protection)
+- **Phase 2**: Unicode normalization & spacing cleanup (deterministic preprocessing)
+- **Phase 3**: Content scrubbing (author notes, navigation, promotional content removal)
+- **Phase 5**: Grammar assist integration (LanguageTool offline engine)
+- **Phase 6**: Detector system (tiny model → JSON replacement plans with guardrails)
+- **Phase 7**: Plan applier & structural validator (7 validators, deterministic, idempotent)
+
+**Current Test Coverage**: 217 tests passing (Phases 1-7)
+
+### 🚀 Active Features
+
+#### Phase 6 & 7: Detector + Applier Workflow
+
+**Detect → Apply Pipeline** for automated TTS problem fixing:
+
+```bash
+# Full workflow: detect problems → generate plan → apply with validation
+python -m mdp input.md --steps detect,apply -o output.md
+
+# Step by step with plan inspection
+python -m mdp input.md --steps detect --plan plan.json --print-plan
+python -m mdp input.md --steps apply --plan plan.json -o output.md
+
+# Dry-run mode (preview without writing)
+python -m mdp input.md --steps detect,apply --dry-run
+
+# With rejection directory for failed validations
+python -m mdp input.md --steps detect,apply --reject-dir rejected/
+```
+
+**Exit Codes:**
+- `0`: Success
+- `2`: Detector model server unreachable
+- `3`: **Validation failure** - edit rejected, structural integrity violated
+- `4`: **Plan parse error** - invalid JSON plan
+- `5`: **Masked region edit** - attempted to edit protected content
+
+**Structural Validators** (7 hard stops):
+1. Mask parity (`__MASKED_N__` sentinels unchanged)
+2. Backtick parity (inline code & fences)
+3. Bracket balance (`[]`, `()`, `{}`)
+4. Link sanity (`](` pairs preserved)
+5. Fence parity (` ``` ` even count)
+6. Markdown token guard (no new `*`, `_`, `[`, etc.)
+7. Length delta budget (1% max growth, configurable)
+
+**Testing Validation Rejection:**
+Validator behavior is covered by 81 comprehensive unit tests in `testing/unit_tests/test_apply_*.py`. For smoke testing the full workflow, run `make test-fast` (unit tests) or `make smoke` (requires detector model server running).
+
+### 🎯 TODO / Future Enhancements
+
+#### UI/UX Improvements
 - [ ] **Separate model picker for prepass** - Allow different models for TTS detection vs grammar correction
 - [ ] **Expose prepass prompt in web UI** - Make TTS detection prompts editable like grammar prompts
 - [ ] **Reorganize web UI layout** - Improve component arrangement for more intuitive workflow

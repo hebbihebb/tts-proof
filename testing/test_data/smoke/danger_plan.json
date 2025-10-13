@@ -1,0 +1,17 @@
+[
+  {
+    "find": "Flash",
+    "replace": "*Flash*",
+    "reason": "SMOKE_TEST_DANGER: Adds markdown tokens (asterisks) to trigger structural validation failure"
+  },
+  {
+    "find": "United",
+    "replace": "[United](https://example.com)",
+    "reason": "SMOKE_TEST_DANGER: Adds markdown link syntax to trigger link count validator"
+  },
+  {
+    "find": "Resolve",
+    "replace": "`Resolve`",
+    "reason": "SMOKE_TEST_DANGER: Adds code backticks to trigger inline code validator"
+  }
+]
