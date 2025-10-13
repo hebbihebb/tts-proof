@@ -3,7 +3,7 @@
 MDP (Markdown Processing) CLI Interface
 
 Supports pipeline chaining with --steps argument:
-  python -m mdp input.md --steps mask,prepass-basic,prepass-advanced,grammar
+  python -m mdp input.md --steps mask,prepass-basic,prepass-advanced,grammar,detect,apply,fix
 
 Available steps:
   - mask: Phase 1 Markdown masking
@@ -13,6 +13,7 @@ Available steps:
   - grammar: Phase 5 Grammar assist (requires Java)
   - detect: Phase 6 Detector (tiny model → JSON plan)
   - apply: Phase 7 Plan Applier with structural validation
+  - fix: Phase 8 Fixer (bigger model → light polish on text nodes)
 """
 
 import argparse
@@ -193,6 +194,66 @@ def run_pipeline(input_text: str, steps: List[str], config: Dict[str, Any], dete
             logger.info(f"  Applied {report['replacements_applied']} replacements")
             logger.info(f"  Length delta: {report['length_delta']:+d} chars")
             logger.info(f"  Growth ratio: {report['growth_ratio']:.2%}")
+        
+        elif step == 'fix':
+            # Phase 8: Fixer - light polish on text nodes
+            from fixer.fixer import apply_fixer
+            from apply.validate import validate_all
+            
+            fixer_config = config.get('fixer', {})
+            
+            if not fixer_config.get('enabled', True):
+                logger.info("  Fixer disabled in config")
+                continue
+            
+            # Need text nodes and mask table from Phase 1
+            if mask_table is None:
+                logger.error("  Fixer requires masking - run with --steps mask,...,fix")
+                raise ValueError("Fixer requires Phase 1 masking (run with --steps mask,...,fix)")
+            
+            # Extract text nodes from current text
+            text_nodes = markdown_adapter.extract_text_spans(text)
+            
+            logger.info(f"  Fixing {len(text_nodes)} text nodes")
+            
+            try:
+                fixed_text, fixer_stats = apply_fixer(
+                    text=text,
+                    text_nodes=text_nodes,
+                    mask_table=mask_table,
+                    config=fixer_config
+                )
+                
+                # Validate after fixing (reuse Phase 7 validators)
+                logger.info("  Validating fixed text...")
+                is_valid, failures = validate_all(text, fixed_text, config)
+                
+                if not is_valid:
+                    logger.error(f"  Validation failed after fixer with {len(failures)} error(s):")
+                    for failure in failures:
+                        logger.error(f"    - {failure}")
+                    
+                    # Write rejected file if reject_dir exists
+                    apply_config = config.get('apply', {})
+                    if apply_config.get('reject_dir'):
+                        reject_dir = Path(apply_config['reject_dir'])
+                        reject_dir.mkdir(parents=True, exist_ok=True)
+                        reject_file = reject_dir / (Path(input_text).stem + '.rejected.md')
+                        reject_file.write_text(fixed_text, encoding='utf-8')
+                        logger.info(f"  Wrote rejected fix to: {reject_file}")
+                    
+                    sys.exit(3)  # Validation failure
+                
+                # Validation passed - use fixed text
+                text = fixed_text
+                combined_stats['fix'] = fixer_stats
+                logger.info(f"  Fixed {fixer_stats['spans_fixed']} of {fixer_stats['spans_total']} spans")
+                logger.info(f"  File growth: {fixer_stats['file_growth_ratio']:.2%}")
+                
+            except ConnectionError as e:
+                logger.error(f"  Fixer model server unreachable: {e}")
+                logger.error(f"  Make sure LM Studio is running at {fixer_config.get('api_base')}")
+                sys.exit(2)  # Model unreachable
         
         else:
             logger.warning(f"Unknown step: {step}")
