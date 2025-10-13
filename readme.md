@@ -514,8 +514,102 @@ To connect to a server on another machine:
 
 ## 🔧 Advanced Features
 
-### Command Line Interface (Legacy)
-The original CLI is still available for batch processing:
+### Command Line Interface (MDP Pipeline)
+The modern CLI provides fine-grained control over processing stages:
+
+#### Basic Usage
+```bash
+# Run full pipeline
+python -m mdp input.md --steps mask,prepass-basic,prepass-advanced,grammar
+
+# Run only prepass normalization
+python -m mdp input.md --steps mask,prepass-basic -o output.md
+
+# Run detector + apply workflow
+python -m mdp input.md --steps mask,detect,apply -o output.md
+```
+
+#### Report Generation
+Generate machine-readable JSON reports or human-readable summaries:
+
+```bash
+# JSON report only
+python -m mdp input.md --steps mask,detect,apply --report report.json
+
+# Human-readable pretty report (printed to stdout)
+python -m mdp input.md --steps mask,detect,apply --report-pretty
+
+# Both JSON and pretty report
+python -m mdp input.md --steps mask,detect,apply --report report.json --report-pretty
+```
+
+**Pretty Report Output Example:**
+```
+====================================================================
+                          RUN SUMMARY                              
+====================================================================
+  Input file     : input.md
+  Output file    : output.md
+  Pipeline steps : mask -> detect -> apply
+
+====================================================================
+                        PHASE STATISTICS                           
+====================================================================
+  Mask     : 50 regions masked
+  Detector : 20 suggestions (model: qwen2.5-1.5b)
+  Apply    : 18 replacements in 12 nodes
+
+====================================================================
+                           REJECTIONS                              
+====================================================================
+Detector Rejections:
+  schema_invalid :    5
+
+====================================================================
+                          FILE GROWTH                              
+====================================================================
+  Apply phase : +1.50% (+30 chars)
+```
+
+**Report Features:**
+- 📊 **Organized sections**: Run summary, phase stats, rejections, file growth, quality flags
+- 📏 **Compact formatting**: ~100 char width, truncated paths for readability
+- ✅ **Smart visibility**: Sections only shown when relevant (no empty tables)
+- 📈 **Growth tracking**: File size changes with percentages and character deltas
+- 🎯 **Quality indicators**: Determinism flags, rejection counts per phase
+
+#### Available Pipeline Steps
+- `mask` - Phase 1: Markdown structure masking
+- `prepass-basic` - Phase 2: Unicode & spacing normalization
+- `prepass-advanced` - Phase 2+: Advanced normalization (casing, punctuation)
+- `scrubber` - Phase 3: Content scrubbing (author notes, navigation, etc.)
+- `grammar` - Phase 5: Grammar assist (LanguageTool integration)
+- `detect` - Phase 6: TTS problem detection
+- `apply` - Phase 7: Plan application with validation
+- `fix` - Phase 8: Light polish with LLM
+
+#### Additional Options
+```bash
+# Output to specific file
+python -m mdp input.md --steps mask,grammar -o output.md
+
+# Use custom config
+python -m mdp input.md --config custom_config.yaml --steps mask,prepass-basic
+
+# Verbose output
+python -m mdp input.md --steps mask,detect,apply -v
+
+# Dry-run mode (apply step)
+python -m mdp input.md --steps mask,detect,apply --dry-run
+
+# Print unified diff (apply step)
+python -m mdp input.md --steps mask,detect,apply --print-diff
+```
+
+See `docs/` for detailed phase documentation and examples.
+
+### Legacy CLI (md_proof.py)
+The original CLI is still available for backward compatibility:
 ```bash
 python md_proof.py document.md --stream --preview-chars 400
 ```
