@@ -13,7 +13,9 @@ import { ChunkSizeControl } from './components/ChunkSizeControl';
 import { PrepassControl } from './components/PrepassControl';
 import { StepToggles } from './components/StepToggles';  // Phase 11 PR-1
 import { BlessedModelPickers } from './components/BlessedModelPickers';  // Phase 11 PR-1
-import { EditIcon, PlayIcon, SaveIcon, Square, FolderIcon, FlaskConical } from 'lucide-react';
+import { ReportDisplay } from './components/ReportDisplay';  // Phase 11 PR-2
+import { DiffViewer } from './components/DiffViewer';  // Phase 11 PR-2
+import { EditIcon, PlayIcon, SaveIcon, Square, FolderIcon, FlaskConical, FileText, BarChart3, Download } from 'lucide-react';
 import { apiService, WebSocketMessage } from './services/api';
 // Fallback prompt if API fails to load
 const FALLBACK_PROMPT = `You are a grammar and spelling corrector for Markdown text.
@@ -95,6 +97,11 @@ const AppContent = () => {
     detector: [],
     fixer: []
   });
+
+  // Phase 11 PR-2: Results display state
+  const [completedRunId, setCompletedRunId] = useState<string | null>(null);
+  const [showReport, setShowReport] = useState<boolean>(false);
+  const [showDiff, setShowDiff] = useState<boolean>(false);
 
   // Calculate estimated chunks based on text length and chunk size
   const calculateEstimatedChunks = (text: string, size: number) => {
@@ -256,6 +263,12 @@ Return JSON only:
         case 'completed':
           setIsProcessing(false);
           setProgress(100);
+          
+          // Phase 11 PR-2: Store run_id for accessing report/diff
+          if (message.run_id) {
+            setCompletedRunId(message.run_id);
+            addLog(`✓ Run ID: ${message.run_id}`, 'info');
+          }
           
           // Phase 11 PR-1: Handle new pipeline completion with output path
           if (message.output_path) {
@@ -708,6 +721,77 @@ Return JSON only:
                 </div>
               </div>
             </section>
+
+            {/* Phase 11 PR-2: Results Section */}
+            {completedRunId && (
+              <section>
+                <div className="bg-light-surface dark:bg-catppuccin-surface0 rounded-lg shadow-md p-5">
+                  <h3 className="text-md font-semibold mb-3 text-light-text dark:text-catppuccin-text">
+                    Pipeline Results
+                  </h3>
+                  <div className="space-y-2">
+                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                      Run ID: <code className="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-xs">{completedRunId}</code>
+                    </div>
+                    
+                    {/* Report and Diff Buttons */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <Button 
+                        onClick={() => setShowReport(true)} 
+                        variant="outline" 
+                        icon={<BarChart3 className="w-4 h-4" />}
+                        className="w-full"
+                      >
+                        View Report
+                      </Button>
+                      <Button 
+                        onClick={() => setShowDiff(true)} 
+                        variant="outline" 
+                        icon={<FileText className="w-4 h-4" />}
+                        className="w-full"
+                      >
+                        View Diff
+                      </Button>
+                    </div>
+
+                    {/* Artifact Downloads */}
+                    <div className="pt-3 border-t dark:border-gray-700">
+                      <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Download Artifacts:</div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={async () => {
+                            const blob = await apiService.downloadArtifact(completedRunId, 'output');
+                            const url = window.URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `${completedRunId}_output.md`;
+                            a.click();
+                          }}
+                          className="text-xs px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded flex items-center justify-center gap-1"
+                        >
+                          <Download className="w-3 h-3" />
+                          Output
+                        </button>
+                        <button
+                          onClick={async () => {
+                            const blob = await apiService.downloadArtifact(completedRunId, 'plan');
+                            const url = window.URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `${completedRunId}_plan.json`;
+                            a.click();
+                          }}
+                          className="text-xs px-3 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded flex items-center justify-center gap-1"
+                        >
+                          <Download className="w-3 h-3" />
+                          Plan
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            )}
           </div>
         </div>
 
@@ -749,6 +833,20 @@ Return JSON only:
         onLog={addLog}
         isPrepass={true}
       />
+
+      {/* Phase 11 PR-2: Report and Diff Modals */}
+      {showReport && completedRunId && (
+        <ReportDisplay
+          runId={completedRunId}
+          onClose={() => setShowReport(false)}
+        />
+      )}
+      {showDiff && completedRunId && (
+        <DiffViewer
+          runId={completedRunId}
+          onClose={() => setShowDiff(false)}
+        />
+      )}
     </div>;
 };
 export function App() {

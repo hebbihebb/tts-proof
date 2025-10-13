@@ -48,6 +48,7 @@ export interface WebSocketMessage {
   current_step?: string;  // Phase 11 PR-1: Current step name
   stats?: any;         // Phase 11 PR-1: Pipeline statistics
   output_path?: string; // Phase 11 PR-1: Output file path
+  run_id?: string;     // Phase 11 PR-2: Run ID for accessing artifacts
 }
 
 class ApiService {
@@ -457,6 +458,55 @@ class ApiService {
       throw new Error('Failed to fetch temp directory');
     }
     return await response.json();
+  }
+
+  // Phase 11 PR-2: Get pretty-formatted report for a run
+  async getRunReport(runId: string): Promise<{
+    pretty_report: string;
+    json_report_path: string | null;
+  }> {
+    const response = await fetch(`${API_BASE_URL}/runs/${runId}/report`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch run report');
+    }
+    return await response.json();
+  }
+
+  // Phase 11 PR-2: Get unified diff for a run
+  async getRunDiff(runId: string, maxLines: number = 200): Promise<{
+    diff_head: string;
+    has_more: boolean;
+    rejected: boolean;
+  }> {
+    const response = await fetch(`${API_BASE_URL}/runs/${runId}/diff?max_lines=${maxLines}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch run diff');
+    }
+    return await response.json();
+  }
+
+  // Phase 11 PR-2: Get result summary for a run
+  async getRunResult(runId: string): Promise<{
+    exit_code: number;
+    output_path: string | null;
+    rejected_path: string | null;
+    plan_path: string | null;
+    json_report_path: string | null;
+  }> {
+    const response = await fetch(`${API_BASE_URL}/runs/${runId}/result`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch run result');
+    }
+    return await response.json();
+  }
+
+  // Phase 11 PR-2: Download an artifact file
+  async downloadArtifact(runId: string, name: string): Promise<Blob> {
+    const response = await fetch(`${API_BASE_URL}/artifact?run_id=${runId}&name=${name}`);
+    if (!response.ok) {
+      throw new Error(`Failed to download artifact: ${name}`);
+    }
+    return await response.blob();
   }
 }
 
