@@ -346,6 +346,25 @@ class BlessedModelsResponse(BaseModel):
     detector: List[str]
     fixer: List[str]
 
+class ReportResponse(BaseModel):
+    """Response model for report endpoint."""
+    pretty_report: str
+    json_report_path: Optional[str] = None
+
+class DiffResponse(BaseModel):
+    """Response model for diff endpoint."""
+    diff_head: str
+    has_more: bool
+    rejected: bool
+
+class ResultResponse(BaseModel):
+    """Response model for result endpoint."""
+    exit_code: int
+    output_path: Optional[str] = None
+    rejected_path: Optional[str] = None
+    plan_path: Optional[str] = None
+    json_report_path: Optional[str] = None
+
 # Global state for processing jobs
 processing_jobs: Dict[str, dict] = {}
 prepass_jobs: Dict[str, dict] = {}
@@ -800,14 +819,28 @@ async def run_pipeline_job(run_id: str, request: RunRequest):
         artifacts_dir = Path.home() / '.mdp' / 'runs' / run_id
         artifacts_dir.mkdir(parents=True, exist_ok=True)
         
-        output_path = artifacts_dir / f"{input_path.stem}_processed.md"
+        # Write input copy for diff
+        input_copy_path = artifacts_dir / 'input.txt'
+        with open(input_copy_path, 'w', encoding='utf-8') as f:
+            f.write(input_text)
+        
+        # Write output (standardized name)
+        output_path = artifacts_dir / 'output.md'
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(processed_text)
         
-        # Write stats
-        stats_path = artifacts_dir / 'stats.json'
-        with open(stats_path, 'w', encoding='utf-8') as f:
+        # Write stats as report.json (standardized name for PR-2)
+        report_path = artifacts_dir / 'report.json'
+        with open(report_path, 'w', encoding='utf-8') as f:
             json.dump(combined_stats, f, indent=2)
+        
+        # Write plan if detector step was run
+        if 'detect' in request.steps and 'detect' in combined_stats:
+            plan_data = combined_stats['detect'].get('plan', [])
+            if plan_data:
+                plan_path = artifacts_dir / 'plan.json'
+                with open(plan_path, 'w', encoding='utf-8') as f:
+                    json.dump(plan_data, f, indent=2)
         
         # Update job status
         run_jobs[run_id].update({
@@ -815,18 +848,19 @@ async def run_pipeline_job(run_id: str, request: RunRequest):
             "progress": 100,
             "result": {
                 "output_path": str(output_path),
-                "stats_path": str(stats_path),
+                "report_path": str(report_path),
                 "stats": combined_stats,
                 "exit_code": 0
             }
         })
         
-        # Send completion message
+        # Send completion message with run_id for frontend
         await manager.send_message(client_id, {
             "type": "completed",
             "source": "pipeline",
             "progress": 100,
             "message": "Pipeline completed successfully",
+            "run_id": run_id,
             "output_path": str(output_path),
             "stats": combined_stats,
             "exit_code": 0
@@ -1358,6 +1392,198 @@ async def run_test(request: dict):
             },
             "log_file": None
         }
+
+@app.get("/api/runs/{run_id}/report", response_model=ReportResponse)
+async def get_run_report(run_id: str):
+    """
+    Get pretty-formatted report for a completed run.
+    Returns human-readable report using CLI formatter.
+    """
+    from report.pretty import render_pretty
+    
+    # Find run artifacts
+    artifacts_dir = Path.home() / '.mdp' / 'runs' / run_id
+    json_report_path = artifacts_dir / 'report.json'
+    
+    if not json_report_path.exists():
+        # Check if stats.json exists (fallback for PR-1 runs)
+        stats_path = artifacts_dir / 'stats.json'
+        if stats_path.exists():
+            # Use stats.json as report data
+            with open(stats_path, 'r', encoding='utf-8') as f:
+                report_data = json.load(f)
+            
+            # Generate pretty report from stats
+            try:
+                pretty_output = render_pretty(report_data)
+                return ReportResponse(
+                    pretty_report=pretty_output,
+                    json_report_path=str(stats_path)
+                )
+            except Exception as e:
+                return ReportResponse(
+                    pretty_report=f"Report generation failed: {str(e)}",
+                    json_report_path=str(stats_path)
+                )
+        else:
+            # No report or stats found
+            return ReportResponse(
+                pretty_report="Report unavailable - run not found or incomplete",
+                json_report_path=None
+            )
+    
+    # Load JSON report
+    with open(json_report_path, 'r', encoding='utf-8') as f:
+        report_data = json.load(f)
+    
+    # Generate pretty report
+    try:
+        pretty_output = render_pretty(report_data)
+    except Exception as e:
+        pretty_output = f"Report generation failed: {str(e)}\n\nRaw data available at: {json_report_path}"
+    
+    return ReportResponse(
+        pretty_report=pretty_output,
+        json_report_path=str(json_report_path)
+    )
+
+@app.get("/api/runs/{run_id}/diff", response_model=DiffResponse)
+async def get_run_diff(run_id: str, max_lines: int = 200):
+    """
+    Get unified diff between input and output (or rejected).
+    Truncates to max_lines for performance.
+    """
+    import difflib
+    
+    artifacts_dir = Path.home() / '.mdp' / 'runs' / run_id
+    input_path = artifacts_dir / 'input.txt'
+    output_path = artifacts_dir / 'output.md'
+    rejected_path = artifacts_dir / 'output.rejected.md'
+    
+    # Check if this is a rejected run
+    is_rejected = rejected_path.exists() and not output_path.exists()
+    comparison_path = rejected_path if is_rejected else output_path
+    
+    if not input_path.exists():
+        return DiffResponse(
+            diff_head="Input file not found - run incomplete or missing",
+            has_more=False,
+            rejected=is_rejected
+        )
+    
+    if not comparison_path.exists():
+        return DiffResponse(
+            diff_head="Output file not found - run incomplete or failed",
+            has_more=False,
+            rejected=is_rejected
+        )
+    
+    # Read files
+    with open(input_path, 'r', encoding='utf-8') as f:
+        input_lines = f.readlines()
+    with open(comparison_path, 'r', encoding='utf-8') as f:
+        output_lines = f.readlines()
+    
+    # Generate unified diff
+    diff_lines = list(difflib.unified_diff(
+        input_lines,
+        output_lines,
+        fromfile='input',
+        tofile='output' if not is_rejected else 'rejected',
+        lineterm=''
+    ))
+    
+    # Check if there are any changes
+    if not diff_lines:
+        return DiffResponse(
+            diff_head="No differences found - files are identical",
+            has_more=False,
+            rejected=is_rejected
+        )
+    
+    # Truncate to max_lines
+    has_more = len(diff_lines) > max_lines
+    diff_head = '\n'.join(diff_lines[:max_lines])
+    
+    return DiffResponse(
+        diff_head=diff_head,
+        has_more=has_more,
+        rejected=is_rejected
+    )
+
+@app.get("/api/runs/{run_id}/result", response_model=ResultResponse)
+async def get_run_result(run_id: str):
+    """
+    Get result summary for a completed run.
+    Returns paths to all artifacts and exit code.
+    """
+    artifacts_dir = Path.home() / '.mdp' / 'runs' / run_id
+    
+    # Check for various artifacts
+    output_path = artifacts_dir / 'output.md'
+    rejected_path = artifacts_dir / 'output.rejected.md'
+    plan_path = artifacts_dir / 'plan.json'
+    json_report_path = artifacts_dir / 'report.json'
+    stats_path = artifacts_dir / 'stats.json'
+    
+    # Determine exit code from job state or files
+    exit_code = 0
+    if rejected_path.exists():
+        exit_code = 3  # Validation failed
+    elif run_id in run_jobs:
+        result = run_jobs[run_id].get('result', {})
+        exit_code = result.get('exit_code', 0)
+    
+    return ResultResponse(
+        exit_code=exit_code,
+        output_path=str(output_path) if output_path.exists() else None,
+        rejected_path=str(rejected_path) if rejected_path.exists() else None,
+        plan_path=str(plan_path) if plan_path.exists() else None,
+        json_report_path=str(json_report_path) if json_report_path.exists() else str(stats_path) if stats_path.exists() else None
+    )
+
+@app.get("/api/artifact")
+async def get_artifact(run_id: str, name: str):
+    """
+    Download a specific artifact file.
+    name can be: output, plan, report, rejected, input
+    """
+    artifacts_dir = Path.home() / '.mdp' / 'runs' / run_id
+    
+    # Map name to file path
+    file_map = {
+        'output': artifacts_dir / 'output.md',
+        'rejected': artifacts_dir / 'output.rejected.md',
+        'plan': artifacts_dir / 'plan.json',
+        'report': artifacts_dir / 'report.json',
+        'stats': artifacts_dir / 'stats.json',  # Fallback for PR-1 runs
+        'input': artifacts_dir / 'input.txt'
+    }
+    
+    if name not in file_map:
+        raise HTTPException(status_code=400, detail=f"Invalid artifact name: {name}")
+    
+    file_path = file_map[name]
+    if not file_path.exists():
+        # Try fallback for report
+        if name == 'report':
+            stats_path = file_map['stats']
+            if stats_path.exists():
+                return FileResponse(
+                    stats_path,
+                    media_type='application/json',
+                    filename=f'{run_id}_stats.json'
+                )
+        raise HTTPException(status_code=404, detail=f"Artifact not found: {name}")
+    
+    # Determine media type
+    media_type = 'application/json' if file_path.suffix == '.json' else 'text/markdown'
+    
+    return FileResponse(
+        file_path,
+        media_type=media_type,
+        filename=file_path.name
+    )
 
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
