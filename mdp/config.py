@@ -84,6 +84,15 @@ DEFAULT_CONFIG = {
         'overlap_size': 50,
         'max_non_alpha_ratio': 0.5,
     },
+    'apply': {
+        'enabled': True,
+        'max_file_growth_ratio': 0.01,  # 1% cap on total file growth
+        'enforce_backtick_parity': True,
+        'enforce_bracket_parity': True,
+        'enforce_fence_parity': True,
+        'forbid_new_markdown_tokens': True,
+        'dry_run': False,
+    },
 }
 
 def load_config(path: str = None) -> Dict[str, Any]:
