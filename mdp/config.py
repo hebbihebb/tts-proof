@@ -93,6 +93,23 @@ DEFAULT_CONFIG = {
         'forbid_new_markdown_tokens': True,
         'dry_run': False,
     },
+    'fixer': {
+        'enabled': True,
+        'model': 'qwen2.5-1.5b-instruct',
+        'api_base': 'http://127.0.0.1:1234/v1',
+        'max_context_tokens': 1024,
+        'max_output_tokens': 256,
+        'timeout_s': 10,
+        'retries': 1,
+        'temperature': 0.2,
+        'top_p': 0.9,
+        'node_max_growth_ratio': 0.20,   # 20% per node
+        'file_max_growth_ratio': 0.05,   # 5% per file
+        'forbid_markdown_tokens': True,
+        'locale': 'en',
+        'batch_size': 1,
+        'seed': 7,
+    },
 }
 
 def load_config(path: str = None) -> Dict[str, Any]:
