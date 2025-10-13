@@ -11,6 +11,8 @@ import { Button } from './components/Button';
 import { FileAnalysis } from './components/FileAnalysis';
 import { ChunkSizeControl } from './components/ChunkSizeControl';
 import { PrepassControl } from './components/PrepassControl';
+import { StepToggles } from './components/StepToggles';  // Phase 11 PR-1
+import { BlessedModelPickers } from './components/BlessedModelPickers';  // Phase 11 PR-1
 import { EditIcon, PlayIcon, SaveIcon, Square, FolderIcon, FlaskConical } from 'lucide-react';
 import { apiService, WebSocketMessage } from './services/api';
 // Fallback prompt if API fails to load
@@ -77,6 +79,23 @@ const AppContent = () => {
   const [prepassTotalChunks, setPrepassTotalChunks] = useState<number>(0);
   const [isRunningTest, setIsRunningTest] = useState<boolean>(false);
 
+  // Phase 11 PR-1: Pipeline step toggles and blessed models
+  const [enabledSteps, setEnabledSteps] = useState<Record<string, boolean>>({
+    'prepass-basic': true,
+    'prepass-advanced': true,
+    'scrubber': false,  // Disabled by default
+    'grammar': true,
+    'detect': true,
+    'apply': true,
+    'fix': true
+  });
+  const [detectorModel, setDetectorModel] = useState<string>('qwen2.5-1.5b-instruct');
+  const [fixerModel, setFixerModel] = useState<string>('qwen2.5-1.5b-instruct');
+  const [blessedModels, setBlessedModels] = useState<{detector: string[], fixer: string[]}>({
+    detector: [],
+    fixer: []
+  });
+
   // Calculate estimated chunks based on text length and chunk size
   const calculateEstimatedChunks = (text: string, size: number) => {
     if (!text) return 0;
@@ -124,6 +143,28 @@ Return JSON only:
     };
     loadGrammarPrompt();
     loadPrepassPrompt();
+  }, []);
+
+  // Phase 11 PR-1: Load blessed models on startup
+  useEffect(() => {
+    const loadBlessedModels = async () => {
+      try {
+        const models = await apiService.getBlessedModels();
+        setBlessedModels(models);
+        // Set default models if available
+        if (models.detector.length > 0) {
+          setDetectorModel(models.detector[0]);
+        }
+        if (models.fixer.length > 0) {
+          setFixerModel(models.fixer[0]);
+        }
+        addLog(`Loaded blessed models: ${models.detector.length} detector, ${models.fixer.length} fixer`, 'info');
+      } catch (error) {
+        console.error('Failed to load blessed models:', error);
+        addLog('Failed to load blessed models, using defaults', 'warning');
+      }
+    };
+    loadBlessedModels();
   }, []);
 
   // Save endpoint to localStorage when it changes
@@ -182,10 +223,15 @@ Return JSON only:
           }
           if (message.chunks_processed && message.total_chunks) {
             setStatus(`Processing: ${message.chunks_processed}/${message.total_chunks} chunks completed`);
+          } else if (message.current_step) {
+            // Phase 11 PR-1: Show current step in status
+            setStatus(`${message.message} (Step: ${message.current_step})`);
           } else {
             setStatus(message.message);
           }
-          addLog(message.message, 'info');
+          // Log with source context if available
+          const logMsg = message.source ? `[${message.source}] ${message.message}` : message.message;
+          addLog(logMsg, 'info');
           break;
         case 'chunk_complete':
           if (message.progress !== undefined) {
@@ -210,19 +256,55 @@ Return JSON only:
         case 'completed':
           setIsProcessing(false);
           setProgress(100);
-          if (message.total_processed) {
+          
+          // Phase 11 PR-1: Handle new pipeline completion with output path
+          if (message.output_path) {
+            setStatus('Pipeline completed successfully!');
+            addLog(`✓ Output saved to: ${message.output_path}`, 'success');
+            
+            // Load processed text if available (for preview)
+            if (message.result && typeof message.result === 'string') {
+              setProcessedText(message.result);
+            }
+            
+            // Show stats summary
+            if (message.stats) {
+              const statsMsg = `Stats: ${JSON.stringify(message.stats, null, 2)}`;
+              addLog(statsMsg, 'info');
+            }
+            
+            // Phase 11 PR-1: Exit code 0 = success
+            if (message.exit_code === 0) {
+              addLog('✓ Pipeline completed with exit code 0 (Success)', 'success');
+            }
+          } else if (message.total_processed) {
             setStatus(`Processing completed! Processed ${message.total_processed} chunks.`);
+            addLog(`Processing completed with ${message.output_size || 0} characters`, 'success');
           } else {
             setStatus('Processing completed successfully!');
+            addLog(message.message, 'success');
           }
-          
-          // The result is now built chunk-by-chunk, so we just log the final message.
-          addLog(`Processing completed with ${message.output_size || 0} characters`, 'success');
           break;
         case 'error':
           setIsProcessing(false);
           setStatus('Processing failed');
-          addLog(message.message, 'error');
+          
+          // Phase 11 PR-1: Map exit codes to user-friendly messages
+          let errorType: 'error' | 'warning' = 'error';
+          let friendlyMsg = message.message;
+          
+          if (message.exit_code === 2) {
+            friendlyMsg = '⚠️ Model server unreachable. Please check that LM Studio is running.';
+            errorType = 'warning';
+          } else if (message.exit_code === 3) {
+            friendlyMsg = `⚠️ Validation failed: ${message.message}. Output rejected to prevent data loss.`;
+            errorType = 'error';
+          } else if (message.exit_code === 4) {
+            friendlyMsg = `⚠️ Plan parse error: ${message.message}. Check detector output format.`;
+            errorType = 'error';
+          }
+          
+          addLog(friendlyMsg, errorType);
           break;
       }
     };
@@ -276,38 +358,46 @@ Return JSON only:
       return;
     }
 
-    if (!selectedModelId) {
-      addLog('No model selected', 'error');
-      return;
-    }
-
     try {
       setIsProcessing(true);
       setProgress(0);
       setStatus('Starting processing...');
       setProcessedText(''); // Clear previous results
-      addLog('Sending file for processing...', 'info');
+      addLog('Uploading file...', 'info');
 
-      // Set the job ID early (it's the same as client ID) to avoid race condition
+      // Upload file to get temp path
+      const uploadResult = await apiService.uploadFile(file);
+      addLog(`File uploaded: ${uploadResult.temp_path}`, 'info');
+
+      // Get client ID
       const clientId = apiService.getClientId();
       setCurrentJobId(clientId);
-      console.log('Set currentJobId to:', clientId);
 
-      // Start processing job
-      const jobResult = await apiService.startProcessing({
-        content: originalText,
-        model_name: selectedModelId,
-        api_base: currentEndpoint,
-        prompt_template: prompt,
-        stream: false,
-        show_progress: true,
-        chunk_size: chunkSize,
-        preview_chars: 500,
-        use_prepass: usePrepass,
-        prepass_report: usePrepass ? prepassReport : undefined
+      // Phase 11 PR-1: Build steps array from enabled steps
+      const steps: string[] = ['mask']; // mask always implied/first
+      Object.entries(enabledSteps).forEach(([step, enabled]) => {
+        if (enabled) {
+          steps.push(step);
+        }
       });
 
-      addLog(`Processing job started: ${jobResult.job_id}`, 'info');
+      addLog(`Pipeline steps: ${steps.join(', ')}`, 'info');
+      addLog(`Detector model: ${detectorModel}`, 'info');
+      addLog(`Fixer model: ${fixerModel}`, 'info');
+
+      // Phase 11 PR-1: Call new unified /api/run endpoint
+      const runResult = await apiService.runPipeline({
+        input_path: uploadResult.temp_path,
+        steps: steps,
+        models: {
+          detector: detectorModel,
+          fixer: fixerModel
+        },
+        report_pretty: true,
+        client_id: clientId
+      });
+
+      addLog(`Pipeline run started: ${runResult.run_id}`, 'info');
 
     } catch (error) {
       console.error('Error starting processing:', error);
@@ -349,6 +439,16 @@ Return JSON only:
       type
     }]);
   };
+
+  // Phase 11 PR-1: Handler for step toggles
+  const handleToggleStep = (step: string) => {
+    setEnabledSteps(prev => ({
+      ...prev,
+      [step]: !prev[step]
+    }));
+    addLog(`Toggled step: ${step} ${enabledSteps[step] ? 'OFF' : 'ON'}`, 'info');
+  };
+
   const handleClearPreview = () => {
     setProcessedText('');
     setOriginalText('');
@@ -444,7 +544,7 @@ Return JSON only:
             </div>
           </div>
           <div className="flex items-center space-x-2">
-            <Button variant="outline" size="icon" onClick={handleOpenTempDir} title="Open Temp Directory">
+            <Button variant="outline" size="sm" onClick={handleOpenTempDir} title="Open Temp Directory">
               <FolderIcon className="w-5 h-5" />
             </Button>
             <ThemeToggle />
@@ -520,33 +620,62 @@ Return JSON only:
             </section>
           </div>
 
-          {/* Column 3: Main Processing */}
+          {/* Column 3: Pipeline Configuration & Processing */}
           <div className="flex-1 flex flex-col gap-6">
             <section className="bg-light-mantle dark:bg-catppuccin-mantle rounded-xl p-4 shadow-lg border border-light-surface0 dark:border-catppuccin-surface0 flex-grow">
               <h2 className="text-lg font-semibold mb-3 text-light-text dark:text-catppuccin-text">
-                3. Main Processing
+                3. Pipeline Configuration
               </h2>
               <div className="space-y-4">
-                <ModelPicker
-                  onModelSelect={setSelectedModelId}
-                  onEndpointChange={setCurrentEndpoint}
-                  currentEndpoint={currentEndpoint}
-                  label="Grammar Model"
+                {/* Phase 11 PR-1: Step Toggles */}
+                <StepToggles 
+                  enabledSteps={enabledSteps}
+                  onToggleStep={handleToggleStep}
+                  disabled={isProcessing}
                 />
-                <div className="bg-light-crust dark:bg-catppuccin-crust p-3 rounded-lg border border-light-surface1 dark:border-catppuccin-surface1">
-                  <div className="flex justify-between items-center mb-2">
-                    <h3 className="text-md font-semibold text-light-text dark:text-catppuccin-text">
-                      Grammar Prompt
-                    </h3>
-                    <Button variant="outline" size="sm" icon={<EditIcon className="w-4 h-4" />} onClick={() => setIsPromptEditorOpen(true)}>
-                      Edit
-                    </Button>
-                  </div>
-                  <pre className="text-sm text-light-subtext1 dark:text-catppuccin-subtext1 whitespace-pre-wrap">
-                    {prompt.length > 100 ? `${prompt.substring(0, 100)}...` : prompt}
-                  </pre>
+
+                {/* Phase 11 PR-1: Blessed Model Pickers */}
+                <BlessedModelPickers
+                  detectorModel={detectorModel}
+                  fixerModel={fixerModel}
+                  blessedModels={blessedModels}
+                  onDetectorChange={setDetectorModel}
+                  onFixerChange={setFixerModel}
+                  disabled={isProcessing}
+                />
+
+                {/* Legacy: Keep old model picker and grammar prompt for backward compatibility */}
+                <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <details className="text-sm">
+                    <summary className="cursor-pointer text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200">
+                      Legacy Options (Old Pipeline)
+                    </summary>
+                    <div className="mt-3 space-y-3">
+                      <ModelPicker
+                        onModelSelect={setSelectedModelId}
+                        onEndpointChange={setCurrentEndpoint}
+                        currentEndpoint={currentEndpoint}
+                        label="Grammar Model (Legacy)"
+                      />
+                      <div className="bg-light-crust dark:bg-catppuccin-crust p-3 rounded-lg border border-light-surface1 dark:border-catppuccin-surface1">
+                        <div className="flex justify-between items-center mb-2">
+                          <h3 className="text-sm font-semibold text-light-text dark:text-catppuccin-text">
+                            Grammar Prompt
+                          </h3>
+                          <Button variant="outline" size="sm" icon={<EditIcon className="w-4 h-4" />} onClick={() => setIsPromptEditorOpen(true)}>
+                            Edit
+                          </Button>
+                        </div>
+                        <pre className="text-xs text-light-subtext1 dark:text-catppuccin-subtext1 whitespace-pre-wrap">
+                          {prompt.length > 100 ? `${prompt.substring(0, 100)}...` : prompt}
+                        </pre>
+                      </div>
+                    </div>
+                  </details>
                 </div>
-                <div>
+
+                {/* Processing Controls */}
+                <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
                   <h3 className="text-md font-semibold mb-2 text-light-text dark:text-catppuccin-text">
                     Process Document
                   </h3>

@@ -33,7 +33,7 @@ export interface JobStatus {
 
 export interface WebSocketMessage {
   type: 'progress' | 'completed' | 'error' | 'chunk_complete' | 'chunk_error' | 'paused';
-  source?: 'prepass' | 'grammar'; // Identify if message is from prepass or main processing
+  source?: 'prepass' | 'grammar' | 'mask' | 'prepass-basic' | 'prepass-advanced' | 'scrubber' | 'detect' | 'apply' | 'fix' | 'pipeline'; // Phase 11 PR-1: Extended sources
   progress?: number;
   message: string;
   result?: string | any;  // Final processed text or prepass report
@@ -43,6 +43,11 @@ export interface WebSocketMessage {
   chunk?: any;
   chunk_index?: number;
   output_size?: number;
+  exit_code?: number;  // Phase 11 PR-1: Exit code for error mapping
+  steps?: string[];    // Phase 11 PR-1: Steps being executed
+  current_step?: string;  // Phase 11 PR-1: Current step name
+  stats?: any;         // Phase 11 PR-1: Pipeline statistics
+  output_path?: string; // Phase 11 PR-1: Output file path
 }
 
 class ApiService {
@@ -69,6 +74,51 @@ class ApiService {
         { id: 'gpt-4', name: 'GPT-4', description: 'OpenAI GPT-4 model' }
       ];
     }
+  }
+
+  // Phase 11 PR-1: Get blessed models for detector and fixer roles
+  async getBlessedModels(): Promise<{detector: string[], fixer: string[]}> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/blessed-models`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch blessed models');
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching blessed models:', error);
+      // Return default blessed models as fallback
+      return {
+        detector: ['qwen2.5-1.5b-instruct'],
+        fixer: ['qwen2.5-1.5b-instruct']
+      };
+    }
+  }
+
+  // Phase 11 PR-1: Run unified pipeline with selected steps and models
+  async runPipeline(request: {
+    input_path: string;
+    steps: string[];
+    models: { detector: string; fixer: string };
+    report_pretty?: boolean;
+    client_id?: string;
+  }): Promise<{ run_id: string; status: string }> {
+    const response = await fetch(`${API_BASE_URL}/run`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ...request,
+        client_id: request.client_id || this.clientId,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to start pipeline run');
+    }
+
+    return await response.json();
   }
 
   async uploadFile(file: File): Promise<{
