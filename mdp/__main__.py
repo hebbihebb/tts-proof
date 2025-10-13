@@ -149,7 +149,6 @@ def run_pipeline(input_text: str, steps: List[str], config: Dict[str, Any], dete
             # Phase 7: Plan Applier with structural validation
             from apply.applier import apply_plan_to_text
             from apply.validate import validate_all
-            from detector.schema import parse_plan_json
             
             apply_config = config.get('apply', {})
             
@@ -157,8 +156,17 @@ def run_pipeline(input_text: str, steps: List[str], config: Dict[str, Any], dete
             plan_items = combined_stats.get('detect', {}).get('plan', [])
             
             if not plan_items:
-                logger.error("  No plan found - 'apply' step requires prior 'detect' step")
-                raise ValueError("Apply step requires detector plan (run with --steps detect,apply)")
+                logger.warning("  No replacements to apply (detector returned empty plan)")
+                logger.info("  Skipping apply step - text unchanged")
+                combined_stats['apply'] = {
+                    'replacements_applied': 0,
+                    'length_delta': 0,
+                    'growth_ratio': 0.0,
+                    'validation_passed': True,
+                    'skipped': True,
+                    'reason': 'empty_plan'
+                }
+                continue
             
             logger.info(f"  Applying plan with {len(plan_items)} items")
             
