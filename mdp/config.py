@@ -129,8 +129,9 @@ def get_blessed_models() -> Dict[str, list[str]]:
     """
     Returns blessed model lists for detector and fixer roles.
     
-    MVP Phase 11 focuses on Qwen2.5-1.5B-Instruct for both roles.
-    These models have been tested and validated for the pipeline.
+    Phase 11 blessed models include Qwen2.5 1.5B, Qwen3 4B, and Qwen3 8B
+    for both detector and fixer. These models have been tested and validated
+    for the pipeline.
     
     Returns:
         Dictionary with 'detector' and 'fixer' keys, each containing
@@ -139,11 +140,19 @@ def get_blessed_models() -> Dict[str, list[str]]:
     Example:
         >>> models = get_blessed_models()
         >>> models['detector']
-        ['qwen2.5-1.5b-instruct']
+        ['qwen2.5-1.5b-instruct', 'qwen3-4b-instruct-2507', 'qwen3-8b']
         >>> models['fixer']
-        ['qwen2.5-1.5b-instruct']
+        ['qwen2.5-1.5b-instruct', 'qwen3-4b-instruct-2507', 'qwen3-8b']
     """
     return {
-        'detector': ['qwen2.5-1.5b-instruct'],
-        'fixer': ['qwen2.5-1.5b-instruct']
+        'detector': [
+            'qwen2.5-1.5b-instruct',
+            'qwen3-4b-instruct-2507',
+            'qwen3-8b'
+        ],
+        'fixer': [
+            'qwen2.5-1.5b-instruct',
+            'qwen3-4b-instruct-2507',
+            'qwen3-8b'
+        ]
     }
