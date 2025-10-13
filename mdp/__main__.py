@@ -12,6 +12,7 @@ Available steps:
   - scrubber: Phase 3 Content scrubbing
   - grammar: Phase 5 Grammar assist (requires Java)
   - detect: Phase 6 Detector (tiny model → JSON plan)
+  - apply: Phase 7 Plan Applier with structural validation
 """
 
 import argparse
@@ -143,6 +144,56 @@ def run_pipeline(input_text: str, steps: List[str], config: Dict[str, Any], dete
                 # For now, just log that the feature is available
                 logger.warning("  --detector-dump requires instrumentation (not yet implemented)")
         
+        elif step == 'apply':
+            # Phase 7: Plan Applier with structural validation
+            from apply.applier import apply_plan_to_text
+            from apply.validate import validate_all
+            from detector.schema import parse_plan_json
+            
+            apply_config = config.get('apply', {})
+            
+            # Check if we have a plan from previous detector step
+            plan_items = combined_stats.get('detect', {}).get('plan', [])
+            
+            if not plan_items:
+                logger.error("  No plan found - 'apply' step requires prior 'detect' step")
+                raise ValueError("Apply step requires detector plan (run with --steps detect,apply)")
+            
+            logger.info(f"  Applying plan with {len(plan_items)} items")
+            
+            # Apply plan to text
+            try:
+                edited_text, report = apply_plan_to_text(text, plan_items, config)
+            except Exception as e:
+                logger.error(f"  Plan application failed: {e}")
+                raise ValueError(f"Apply failed: {e}") from e
+            
+            # Validate structural integrity
+            is_valid, failures = validate_all(text, edited_text, config)
+            
+            if not is_valid:
+                logger.error(f"  Validation failed with {len(failures)} error(s):")
+                for failure in failures:
+                    logger.error(f"    - {failure}")
+                
+                # Write rejected file if configured
+                if apply_config.get('reject_dir'):
+                    reject_dir = Path(apply_config['reject_dir'])
+                    reject_dir.mkdir(parents=True, exist_ok=True)
+                    reject_file = reject_dir / (Path(input_text).stem + '.rejected.md')
+                    reject_file.write_text(edited_text, encoding='utf-8')
+                    logger.info(f"  Wrote rejected edit to: {reject_file}")
+                
+                raise ValueError(f"Validation failed: {'; '.join(failures)}")
+            
+            # Validation passed - use edited text
+            text = edited_text
+            combined_stats['apply'] = report
+            combined_stats['apply']['validation_passed'] = True
+            logger.info(f"  Applied {report['replacements_applied']} replacements")
+            logger.info(f"  Length delta: {report['length_delta']:+d} chars")
+            logger.info(f"  Growth ratio: {report['growth_ratio']:.2%}")
+        
         else:
             logger.warning(f"Unknown step: {step}")
     
@@ -189,6 +240,12 @@ Examples:
                        help='Print detector plan to stdout')
     parser.add_argument('--detector-dump', type=Path,
                        help='Directory to dump per-span raw model outputs (debug only)')
+    parser.add_argument('--dry-run', action='store_true',
+                       help='Apply step: show diff without writing output')
+    parser.add_argument('--print-diff', action='store_true',
+                       help='Apply step: print unified diff after applying plan')
+    parser.add_argument('--reject-dir', type=Path,
+                       help='Apply step: directory to write rejected edits (if validation fails)')
     parser.add_argument('-v', '--verbose', action='store_true',
                        help='Verbose output')
     
@@ -215,7 +272,7 @@ Examples:
     logger.info(f"Pipeline steps: {' → '.join(steps)}")
     
     # Validate steps
-    valid_steps = {'mask', 'prepass-basic', 'prepass-advanced', 'scrubber', 'grammar', 'detect'}
+    valid_steps = {'mask', 'prepass-basic', 'prepass-advanced', 'scrubber', 'grammar', 'detect', 'apply'}
     invalid_steps = set(steps) - valid_steps
     if invalid_steps:
         logger.error(f"Invalid steps: {invalid_steps}")
@@ -229,6 +286,20 @@ Examples:
         # Exit code 2 for unreachable model server
         logger.error(f"Pipeline failed: {e}")
         return 2
+    except ValueError as e:
+        # Exit code 3 for validation failures (from apply step)
+        if "Validation failed" in str(e):
+            logger.error(f"Pipeline failed: {e}")
+            return 3
+        # Exit code 4 for plan parse errors
+        elif "plan" in str(e).lower() or "parse" in str(e).lower():
+            logger.error(f"Pipeline failed: {e}")
+            return 4
+        else:
+            logger.error(f"Pipeline failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return 1
     except Exception as e:
         logger.error(f"Pipeline failed: {e}")
         import traceback
