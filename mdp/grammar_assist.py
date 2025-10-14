@@ -6,7 +6,9 @@ Provides conservative grammar and spacing corrections using an offline engine.
 Operates only on text nodes, never alters Markdown structure or masked regions.
 """
 
+import os
 import re
+from pathlib import Path
 from typing import Dict, Any, Tuple, List, Optional
 from collections import defaultdict
 import logging
@@ -18,9 +20,22 @@ logger = logging.getLogger(__name__)
 try:
     import language_tool_python
     _language_tool_available = True
+    try:
+        from language_tool_python import utils as _lt_utils
+    except Exception:  # pragma: no cover - optional helper import
+        _lt_utils = None
 except ImportError:
     _language_tool_available = False
     logger.warning("language_tool_python not available. Grammar assist will be disabled.")
+
+
+_LT_NO_UPDATE = os.getenv("MDP_LT_NO_UPDATE", "").lower() in {"1", "true", "yes"}
+_LT_HOME = Path(os.getenv("MDP_LT_HOME", Path.home() / ".cache" / "language_tool_python")).expanduser()
+_LT_ENV_CONFIGURED = False
+_LT_JAR_PATTERNS: List[str] = []
+
+if _language_tool_available and '_lt_utils' in globals() and _lt_utils is not None:
+    _LT_JAR_PATTERNS = list(getattr(_lt_utils, "JAR_NAMES", []))
 
 
 # Safe category whitelist - only these are auto-applied
@@ -31,6 +46,58 @@ SAFE_CATEGORIES = {
     'SPACING',
     'SIMPLE_AGREEMENT',
 }
+
+
+def _resolve_lt_jar_dir(base: Path) -> Optional[Path]:
+    """Locate a directory that already contains LanguageTool jars."""
+    base = base.expanduser()
+    if base.is_file():
+        return base.parent
+    if not base.exists():
+        return None
+
+    candidates: List[Path] = []
+    if base.is_dir():
+        candidates.append(base)
+        try:
+            candidates.extend(child for child in base.iterdir() if child.is_dir())
+        except OSError:  # pragma: no cover - unreadable directory
+            return None
+
+    patterns = _LT_JAR_PATTERNS or [
+        "languagetool-standalone*.jar",
+        "languagetool-server.jar",
+        "LanguageTool.jar",
+    ]
+
+    for candidate in candidates:
+        for pattern in patterns:
+            if list(candidate.glob(pattern)):
+                return candidate
+    return None
+
+
+def _ensure_lt_present() -> None:
+    """Skip LT downloads when caching is locked down."""
+    global _LT_ENV_CONFIGURED
+    if not _language_tool_available or _LT_ENV_CONFIGURED:
+        return
+    jar_dir = _resolve_lt_jar_dir(_LT_HOME)
+    if jar_dir:
+        os.environ.setdefault("LTP_JAR_DIR_PATH", str(jar_dir))
+        parent_for_cache = jar_dir.parent if jar_dir.parent != jar_dir else jar_dir
+        os.environ.setdefault("LTP_PATH", str(parent_for_cache))
+        logger.info("Using cached LanguageTool at %s", jar_dir)
+
+    if _LT_NO_UPDATE:
+        if not jar_dir:
+            raise RuntimeError(
+                f"LanguageTool not found at {_LT_HOME}. "
+                "Set MDP_LT_HOME or unset MDP_LT_NO_UPDATE to allow download."
+            )
+        logger.info("MDP_LT_NO_UPDATE set; downloads disabled.")
+
+    _LT_ENV_CONFIGURED = True
 
 
 class GrammarSuggestion:
@@ -168,6 +235,7 @@ def apply_grammar_corrections(text: str, config: Dict[str, Any],
     
     # Initialize LanguageTool
     try:
+        _ensure_lt_present()
         tool = language_tool_python.LanguageTool(language)
     except Exception as e:
         logger.error(f"Failed to initialize LanguageTool: {e}")

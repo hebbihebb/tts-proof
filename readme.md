@@ -219,6 +219,7 @@ curl -OJ "http://127.0.0.1:8000/api/runs/<RUN_ID>/artifacts/<FILENAME>"
 * Paths are served from a fixed `runs/` base directory with path-traversal protection.
 * Client URLs URL-encode both the run id and the artifact name.
 * Markdown structure is preserved throughout the pipeline; post-checks block re-introduction of TTS hazards.
+* Each run emits `decision-log.ndjson` (per-span tie-breaker decisions) and `failed-chunks.json` when postcheck reports a problem.
 
 ---
 

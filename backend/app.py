@@ -965,7 +965,8 @@ async def run_pipeline_job(run_id: str, request: RunRequest):
         processed_text, combined_stats = run_pipeline(
             input_text=input_text,
             steps=request.steps,
-            config=config
+            config=config,
+            run_dir=artifacts_dir
         )
         
         # Write output to artifacts directory

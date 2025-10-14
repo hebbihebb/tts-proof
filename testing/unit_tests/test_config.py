@@ -30,10 +30,10 @@ class TestGetBlessedModels:
         assert len(models['fixer']) > 0
     
     def test_contains_qwen_model(self):
-        """Should contain qwen2.5-1.5b-instruct for both roles."""
+        """Should contain a blessed Qwen3 model for both roles."""
         models = get_blessed_models()
-        assert 'qwen2.5-1.5b-instruct' in models['detector']
-        assert 'qwen2.5-1.5b-instruct' in models['fixer']
+        assert 'qwen/qwen3-4b-2507' in models['detector']
+        assert 'qwen/qwen3-4b-2507' in models['fixer']
     
     def test_models_are_strings(self):
         """All model names should be strings."""
