@@ -15,8 +15,10 @@ import { StepToggles } from './components/StepToggles';  // Phase 11 PR-1
 import { BlessedModelPickers } from './components/BlessedModelPickers';  // Phase 11 PR-1
 import { ReportDisplay } from './components/ReportDisplay';  // Phase 11 PR-2
 import { DiffViewer } from './components/DiffViewer';  // Phase 11 PR-2
-import { EditIcon, PlayIcon, SaveIcon, Square, FolderIcon, FlaskConical, FileText, BarChart3, Download } from 'lucide-react';
+import { EditIcon, PlayIcon, SaveIcon, Square, FolderIcon, FolderOpen, FlaskConical, FileText, BarChart3, Download } from 'lucide-react';
 import { apiService, WebSocketMessage } from './services/api';
+import { RunHistory } from './components/RunHistory';
+import { ArtifactBrowser } from './components/ArtifactBrowser';
 // Fallback prompt if API fails to load
 const FALLBACK_PROMPT = `You are a grammar and spelling corrector for Markdown text.
 
@@ -80,6 +82,8 @@ const AppContent = () => {
   const [prepassChunksProcessed, setPrepassChunksProcessed] = useState<number>(0);
   const [prepassTotalChunks, setPrepassTotalChunks] = useState<number>(0);
   const [isRunningTest, setIsRunningTest] = useState<boolean>(false);
+  const [artifactRunId, setArtifactRunId] = useState<string | null>(null);
+  const [detailRunId, setDetailRunId] = useState<string | null>(null);
 
   // Phase 11 PR-1: Pipeline step toggles and blessed models
   const [enabledSteps, setEnabledSteps] = useState<Record<string, boolean>>({
@@ -267,6 +271,7 @@ Return JSON only:
           // Phase 11 PR-2: Store run_id for accessing report/diff
           if (message.run_id) {
             setCompletedRunId(message.run_id);
+            setDetailRunId(message.run_id);
             addLog(`✓ Run ID: ${message.run_id}`, 'info');
           }
           
@@ -735,9 +740,14 @@ Return JSON only:
                     </div>
                     
                     {/* Report and Diff Buttons */}
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <Button 
-                        onClick={() => setShowReport(true)} 
+                        onClick={() => {
+                          if (completedRunId) {
+                            setDetailRunId(completedRunId);
+                            setShowReport(true);
+                          }
+                        }} 
                         variant="outline" 
                         icon={<BarChart3 className="w-4 h-4" />}
                         className="w-full"
@@ -745,19 +755,37 @@ Return JSON only:
                         View Report
                       </Button>
                       <Button 
-                        onClick={() => setShowDiff(true)} 
+                        onClick={() => {
+                          if (completedRunId) {
+                            setDetailRunId(completedRunId);
+                            setShowDiff(true);
+                          }
+                        }} 
                         variant="outline" 
                         icon={<FileText className="w-4 h-4" />}
                         className="w-full"
                       >
                         View Diff
                       </Button>
+                      <Button
+                        onClick={() => {
+                          if (completedRunId) {
+                            setDetailRunId(completedRunId);
+                            setArtifactRunId(completedRunId);
+                          }
+                        }}
+                        variant="outline"
+                        icon={<FolderOpen className="w-4 h-4" />}
+                        className="w-full"
+                      >
+                        View Artifacts
+                      </Button>
                     </div>
 
                     {/* Artifact Downloads */}
-                    <div className="pt-3 border-t dark:border-gray-700">
+                      <div className="pt-3 border-t dark:border-gray-700">
                       <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Download Artifacts:</div>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         <button
                           onClick={async () => {
                             const blob = await apiService.downloadArtifact(completedRunId, 'output');
@@ -785,6 +813,20 @@ Return JSON only:
                         >
                           <Download className="w-3 h-3" />
                           Plan
+                        </button>
+                        <button
+                          onClick={async () => {
+                            const blob = await apiService.downloadRunArchive(completedRunId);
+                            const url = window.URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `${completedRunId}_artifacts.zip`;
+                            a.click();
+                          }}
+                          className="text-xs px-3 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded flex items-center justify-center gap-1"
+                        >
+                          <Download className="w-3 h-3" />
+                          All
                         </button>
                       </div>
                     </div>
@@ -815,6 +857,23 @@ Return JSON only:
             </div>
           </section>
         </div>
+
+        <RunHistory
+          onViewArtifacts={(runId) => {
+            setDetailRunId(runId);
+            setArtifactRunId(runId);
+          }}
+          onViewReport={(runId) => {
+            setDetailRunId(runId);
+            setShowReport(true);
+          }}
+          onViewDiff={(runId) => {
+            setDetailRunId(runId);
+            setShowDiff(true);
+          }}
+          onLog={(message, kind) => addLog(message, kind ?? 'info')}
+          activeRunId={completedRunId}
+        />
       </div>
 
       {/* Prompt Editor Modal */}
@@ -835,16 +894,23 @@ Return JSON only:
       />
 
       {/* Phase 11 PR-2: Report and Diff Modals */}
-      {showReport && completedRunId && (
+      {showReport && detailRunId && (
         <ReportDisplay
-          runId={completedRunId}
+          runId={detailRunId}
           onClose={() => setShowReport(false)}
         />
       )}
-      {showDiff && completedRunId && (
+      {showDiff && detailRunId && (
         <DiffViewer
-          runId={completedRunId}
+          runId={detailRunId}
           onClose={() => setShowDiff(false)}
+        />
+      )}
+      {artifactRunId && (
+        <ArtifactBrowser
+          runId={artifactRunId}
+          onClose={() => setArtifactRunId(null)}
+          onLog={(message, kind) => addLog(message, kind ?? 'info')}
         />
       )}
     </div>;

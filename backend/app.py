@@ -5,19 +5,23 @@ Provides REST API endpoints and WebSocket support for the React frontend.
 """
 
 import asyncio
+import concurrent.futures
+import io
 import json
+import os
+import shutil
+import tempfile
 import time
 import uuid
+import zipfile
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional
-import tempfile
-import os
-import concurrent.futures
+from typing import Dict, List, Optional, Tuple
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from fastapi.responses import FileResponse, StreamingResponse
+from pydantic import BaseModel, Field
 import uvicorn
 
 # Import our existing functionality
@@ -37,6 +41,79 @@ if GRAMMAR_PROMPT_PATH.exists():
         GRAMMAR_PROMPT = f.read().strip()
 else:
     GRAMMAR_PROMPT = INSTRUCTION  # Fallback to the built-in instruction
+
+# Run artifact storage (Phase 11 artifacts live in ~/.mdp/runs by default)
+DEFAULT_RUNS_DIR = Path.home() / ".mdp" / "runs"
+RUNS_BASE_DIR = Path(os.environ.get("MDP_RUNS_DIR", str(DEFAULT_RUNS_DIR)))
+RUNS_BASE_DIR.mkdir(parents=True, exist_ok=True)
+
+ARTIFACT_PREVIEW_LIMIT = 4096  # bytes
+TEXT_EXTENSIONS = {".txt", ".md", ".markdown", ".json", ".log", ".yaml", ".yml", ".cfg"}
+
+UTC = timezone.utc
+
+
+def _isoformat(dt: datetime) -> str:
+    return dt.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def iso_now() -> str:
+    return _isoformat(datetime.now(UTC))
+
+
+def get_run_directory(run_id: str) -> Path:
+    return RUNS_BASE_DIR / run_id
+
+
+def get_metadata_path(run_id: str) -> Path:
+    return get_run_directory(run_id) / "metadata.json"
+
+
+def load_run_metadata(run_id: str) -> Optional[dict]:
+    metadata_path = get_metadata_path(run_id)
+    if not metadata_path.exists():
+        return None
+    try:
+        with open(metadata_path, "r", encoding="utf-8") as handle:
+            return json.load(handle)
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def update_run_metadata(run_id: str, **updates) -> dict:
+    metadata = load_run_metadata(run_id) or {}
+    now_iso = iso_now()
+    created_at = updates.pop("created_at", now_iso)
+    if "created_at" not in metadata:
+        metadata["created_at"] = created_at
+    metadata.update(updates)
+    metadata["run_id"] = run_id
+    metadata["updated_at"] = now_iso
+    metadata_path = get_metadata_path(run_id)
+    metadata_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(metadata_path, "w", encoding="utf-8") as handle:
+        json.dump(metadata, handle, indent=2)
+    return metadata
+
+
+def summarize_run_artifacts(run_id: str) -> Tuple[int, List[str]]:
+    total_size = 0
+    names: List[str] = []
+    run_dir = get_run_directory(run_id)
+    if run_dir.exists():
+        for child in run_dir.iterdir():
+            if child.is_file():
+                try:
+                    total_size += child.stat().st_size
+                except OSError:
+                    continue
+                names.append(child.name)
+    names.sort()
+    return total_size, names
+
+
+def iso_from_timestamp(timestamp: float) -> str:
+    return _isoformat(datetime.fromtimestamp(timestamp, tz=UTC))
 
 def correct_chunk_with_prompt(api_base, model, raw_text: str, prompt: str, show_spinner: bool = False):
     """Custom version of correct_chunk that accepts a custom prompt."""
@@ -331,6 +408,7 @@ class JobStatus(BaseModel):
 class RunRequest(BaseModel):
     """Request model for unified /api/run endpoint."""
     input_path: str
+    input_name: Optional[str] = None
     steps: List[str]
     models: Dict[str, str]  # {"detector": "model-name", "fixer": "model-name"}
     report_pretty: bool = True
@@ -364,6 +442,44 @@ class ResultResponse(BaseModel):
     rejected_path: Optional[str] = None
     plan_path: Optional[str] = None
     json_report_path: Optional[str] = None
+
+
+class RunSummary(BaseModel):
+    """Summary of a recorded pipeline run."""
+    run_id: str
+    status: str
+    created_at: str
+    completed_at: Optional[str] = None
+    steps: List[str] = Field(default_factory=list)
+    models: Dict[str, str] = Field(default_factory=dict)
+    exit_code: Optional[int] = None
+    input_name: Optional[str] = None
+    input_size: Optional[int] = None
+    artifact_count: int = 0
+    total_size: Optional[int] = None
+    has_rejected: Optional[bool] = None
+
+
+class RunsResponse(BaseModel):
+    """Response model for run history listing."""
+    runs: List[RunSummary]
+
+
+class ArtifactInfo(BaseModel):
+    """Metadata for a single artifact file."""
+    name: str
+    size_bytes: int
+    modified_at: str
+    media_type: str
+    is_text: bool
+    preview: Optional[str] = None
+
+
+class ArtifactListResponse(BaseModel):
+    """Response model for artifact listing."""
+    run_id: str
+    artifacts: List[ArtifactInfo]
+    total_size: int
 
 # Global state for processing jobs
 processing_jobs: Dict[str, dict] = {}
@@ -716,12 +832,34 @@ async def run_pipeline_endpoint(request: RunRequest):
     input_path = Path(request.input_path)
     if not input_path.exists():
         raise HTTPException(status_code=404, detail=f"Input file not found: {request.input_path}")
+
+    artifacts_dir = get_run_directory(run_id)
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+    input_name = request.input_name or input_path.name
+    try:
+        input_size = input_path.stat().st_size
+    except OSError:
+        input_size = None
+
+    update_run_metadata(
+        run_id,
+        status="processing",
+        created_at=iso_now(),
+        input_name=input_name,
+        input_path=str(input_path),
+        input_size=input_size,
+        steps=request.steps,
+        models=request.models,
+        client_id=client_id
+    )
     
     # Initialize run job tracking
     run_jobs[run_id] = {
         "status": "started",
         "client_id": client_id,
         "input_path": str(input_path),
+        "input_name": input_name,
         "steps": request.steps,
         "models": request.models,
         "progress": 0,
@@ -745,12 +883,27 @@ async def run_pipeline_job(run_id: str, request: RunRequest):
     import traceback
     
     client_id = run_jobs[run_id]["client_id"]
+    artifacts_dir = get_run_directory(run_id)
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
     
     try:
         # Load input text
         input_path = Path(request.input_path)
         with open(input_path, 'r', encoding='utf-8') as f:
             input_text = f.read()
+
+        # Persist source document for artifact browsing
+        input_copy_path = artifacts_dir / 'input.txt'
+        with open(input_copy_path, 'w', encoding='utf-8') as f:
+            f.write(input_text)
+
+        total_size, artifact_names = summarize_run_artifacts(run_id)
+        update_run_metadata(
+            run_id,
+            artifact_count=len(artifact_names),
+            total_size=total_size,
+            has_rejected=False
+        )
         
         # Load config and override with requested models
         config = mdp_config.load_config(None)  # Use defaults
@@ -816,14 +969,6 @@ async def run_pipeline_job(run_id: str, request: RunRequest):
         )
         
         # Write output to artifacts directory
-        artifacts_dir = Path.home() / '.mdp' / 'runs' / run_id
-        artifacts_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Write input copy for diff
-        input_copy_path = artifacts_dir / 'input.txt'
-        with open(input_copy_path, 'w', encoding='utf-8') as f:
-            f.write(input_text)
-        
         # Write output (standardized name)
         output_path = artifacts_dir / 'output.md'
         with open(output_path, 'w', encoding='utf-8') as f:
@@ -841,6 +986,18 @@ async def run_pipeline_job(run_id: str, request: RunRequest):
                 plan_path = artifacts_dir / 'plan.json'
                 with open(plan_path, 'w', encoding='utf-8') as f:
                     json.dump(plan_data, f, indent=2)
+
+        total_size, artifact_names = summarize_run_artifacts(run_id)
+        update_run_metadata(
+            run_id,
+            status="completed",
+            completed_at=iso_now(),
+            exit_code=0,
+            artifact_count=len(artifact_names),
+            total_size=total_size,
+            artifacts=artifact_names,
+            has_rejected=any(name == 'output.rejected.md' for name in artifact_names)
+        )
         
         # Update job status
         run_jobs[run_id].update({
@@ -874,6 +1031,18 @@ async def run_pipeline_job(run_id: str, request: RunRequest):
             "error": error_msg,
             "result": {"exit_code": 2}
         })
+
+        total_size, artifact_names = summarize_run_artifacts(run_id)
+        update_run_metadata(
+            run_id,
+            status="error",
+            completed_at=iso_now(),
+            exit_code=2,
+            error=error_msg,
+            artifact_count=len(artifact_names),
+            total_size=total_size,
+            has_rejected=any(name == 'output.rejected.md' for name in artifact_names)
+        )
         
         await manager.send_message(client_id, {
             "type": "error",
@@ -892,6 +1061,18 @@ async def run_pipeline_job(run_id: str, request: RunRequest):
             "error": error_msg,
             "result": {"exit_code": exit_code}
         })
+
+        total_size, artifact_names = summarize_run_artifacts(run_id)
+        update_run_metadata(
+            run_id,
+            status="error",
+            completed_at=iso_now(),
+            exit_code=exit_code,
+            error=error_msg,
+            artifact_count=len(artifact_names),
+            total_size=total_size,
+            has_rejected=any(name == 'output.rejected.md' for name in artifact_names)
+        )
         
         await manager.send_message(client_id, {
             "type": "error",
@@ -908,6 +1089,18 @@ async def run_pipeline_job(run_id: str, request: RunRequest):
             "error": error_msg,
             "result": {"exit_code": 1}
         })
+
+        total_size, artifact_names = summarize_run_artifacts(run_id)
+        update_run_metadata(
+            run_id,
+            status="error",
+            completed_at=iso_now(),
+            exit_code=1,
+            error=str(e),
+            artifact_count=len(artifact_names),
+            total_size=total_size,
+            has_rejected=any(name == 'output.rejected.md' for name in artifact_names)
+        )
         
         await manager.send_message(client_id, {
             "type": "error",
@@ -1305,7 +1498,7 @@ async def health_check():
     """Simple health check endpoint."""
     return {"status": "ok", "message": "Backend is running"}
 
-@app.post("/api/run-test")  
+@app.post("/api/run-test")
 async def run_test(request: dict):
     """Run a comprehensive test using webui_test.md file."""
     try:
@@ -1322,38 +1515,38 @@ async def run_test(request: dict):
                 },
                 "log_file": None
             }
-        
+
         # Read test content
         with open(test_file, 'r', encoding='utf-8') as f:
             content = f.read()
-        
+
         # Run a quick prepass test
         api_base = request.get('api_base', DEFAULT_API_BASE)
         model = request.get('model_name', DEFAULT_MODEL)
         chunk_size = request.get('chunk_size', 8000)
-        
+
         # Create temp file and run prepass
         temp_dir = tempfile.gettempdir()
         temp_file = Path(temp_dir) / f"test_{uuid.uuid4()}.md"
         with open(temp_file, 'w', encoding='utf-8') as f:
             f.write(content)
-        
+
         try:
             # Use the SAME working run_prepass function that produces superior results
             report = run_prepass(
-                temp_file,  # Pass Path object, not string
+                temp_file,
                 api_base,
                 model,
                 chunk_size,
                 show_progress=False
             )
-            
+
             # Extract summary info
             summary = report.get('summary', {})
             unique_problems = len(summary.get('unique_problem_words', []))
             chunks_processed = summary.get('chunks_processed', 0)
-            sample_problems = summary.get('unique_problem_words', [])[:3]  # First 3 problems
-            
+            sample_problems = summary.get('unique_problem_words', [])[:3]
+
             return {
                 "status": "success",
                 "message": f"Test completed - found {unique_problems} problems in {chunks_processed} chunks. Sample: {sample_problems}",
@@ -1364,10 +1557,10 @@ async def run_test(request: dict):
                 },
                 "log_file": "test_log.md"
             }
-            
+
         except Exception as e:
             return {
-                "status": "error", 
+                "status": "error",
                 "message": f"Test failed: {str(e)}",
                 "summary": {
                     "prepass_problems": 0,
@@ -1380,7 +1573,7 @@ async def run_test(request: dict):
             # Clean up temp file
             if temp_file.exists():
                 temp_file.unlink()
-                
+
     except Exception as e:
         return {
             "status": "error",
@@ -1393,6 +1586,192 @@ async def run_test(request: dict):
             "log_file": None
         }
 
+
+@app.get("/api/runs", response_model=RunsResponse)
+async def list_runs():
+    """Return metadata for existing pipeline runs sorted by newest first."""
+    if not RUNS_BASE_DIR.exists():
+        return RunsResponse(runs=[])
+
+    run_entries = []
+    for run_dir in sorted((p for p in RUNS_BASE_DIR.iterdir() if p.is_dir()), key=lambda p: p.stat().st_mtime, reverse=True):
+        run_id = run_dir.name
+        metadata = load_run_metadata(run_id) or {}
+
+        created_at = metadata.get("created_at")
+        if not created_at:
+            try:
+                created_at = iso_from_timestamp(run_dir.stat().st_mtime)
+            except OSError:
+                created_at = iso_now()
+
+        total_size, artifact_names = summarize_run_artifacts(run_id)
+        has_rejected = metadata.get("has_rejected")
+        if has_rejected is None:
+            has_rejected = any(name == 'output.rejected.md' for name in artifact_names)
+
+        metadata = update_run_metadata(
+            run_id,
+            artifact_count=len(artifact_names),
+            total_size=total_size,
+            has_rejected=has_rejected,
+            artifacts=artifact_names
+        )
+
+        run_entries.append(RunSummary(
+            run_id=run_id,
+            status=metadata.get("status", "unknown"),
+            created_at=created_at,
+            completed_at=metadata.get("completed_at"),
+            steps=metadata.get("steps", []),
+            models=metadata.get("models", {}),
+            exit_code=metadata.get("exit_code"),
+            input_name=metadata.get("input_name"),
+            input_size=metadata.get("input_size"),
+            artifact_count=metadata.get("artifact_count", 0),
+            total_size=metadata.get("total_size"),
+            has_rejected=metadata.get("has_rejected")
+        ))
+
+    return RunsResponse(runs=run_entries)
+
+
+@app.get("/api/runs/{run_id}/artifacts", response_model=ArtifactListResponse)
+async def get_run_artifacts(run_id: str):
+    """List artifacts for a specific run with lightweight previews."""
+    run_dir = get_run_directory(run_id)
+    if not run_dir.exists():
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    artifacts: List[ArtifactInfo] = []
+    for file_path in sorted(run_dir.iterdir(), key=lambda p: p.name.lower()):
+        if not file_path.is_file():
+            continue
+        try:
+            stat = file_path.stat()
+        except OSError:
+            continue
+
+        size_bytes = stat.st_size
+        modified_at = iso_from_timestamp(stat.st_mtime)
+        suffix = file_path.suffix.lower()
+
+        if suffix == '.json':
+            media_type = 'application/json'
+        elif suffix in {'.md', '.markdown'}:
+            media_type = 'text/markdown'
+        elif suffix in {'.txt', '.log', '.cfg', '.yaml', '.yml'}:
+            media_type = 'text/plain'
+        else:
+            media_type = 'application/octet-stream'
+
+        is_text = suffix in TEXT_EXTENSIONS or size_bytes <= ARTIFACT_PREVIEW_LIMIT
+        preview = None
+        if is_text and size_bytes <= ARTIFACT_PREVIEW_LIMIT:
+            try:
+                preview = file_path.read_text(encoding='utf-8')
+            except UnicodeDecodeError:
+                preview = None
+
+        artifacts.append(ArtifactInfo(
+            name=file_path.name,
+            size_bytes=size_bytes,
+            modified_at=modified_at,
+            media_type=media_type,
+            is_text=is_text,
+            preview=preview
+        ))
+
+    total_size = sum(item.size_bytes for item in artifacts)
+    has_rejected = any(item.name == 'output.rejected.md' for item in artifacts)
+
+    update_run_metadata(
+        run_id,
+        artifact_count=len(artifacts),
+        total_size=total_size,
+        has_rejected=has_rejected,
+        artifacts=[item.name for item in artifacts]
+    )
+
+    return ArtifactListResponse(run_id=run_id, artifacts=artifacts, total_size=total_size)
+
+
+@app.get("/api/runs/{run_id}/artifacts/archive")
+async def download_run_artifacts_archive(run_id: str):
+    """Download all artifacts for a run as a ZIP archive."""
+    run_dir = get_run_directory(run_id)
+    if not run_dir.exists():
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    files = [p for p in run_dir.iterdir() if p.is_file()]
+    if not files:
+        raise HTTPException(status_code=404, detail="No artifacts found for run")
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
+        for file_path in files:
+            try:
+                archive.write(file_path, arcname=file_path.name)
+            except OSError:
+                continue
+
+    buffer.seek(0)
+    headers = {
+        "Content-Disposition": f'attachment; filename="{run_id}_artifacts.zip"'
+    }
+    return StreamingResponse(buffer, media_type="application/zip", headers=headers)
+
+
+@app.get("/api/runs/{run_id}/artifacts/{artifact_name:path}")
+async def download_run_artifact(run_id: str, artifact_name: str):
+    """Download a specific artifact file by filename."""
+    run_dir = get_run_directory(run_id)
+    if not run_dir.exists():
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    safe_name = Path(artifact_name).name
+    target_path = run_dir / safe_name
+
+    try:
+        resolved_run_dir = run_dir.resolve(strict=True)
+        resolved_target = target_path.resolve(strict=True)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Artifact not found") from None
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    if resolved_target.parent != resolved_run_dir or not resolved_target.is_file():
+        raise HTTPException(status_code=404, detail="Artifact not found")
+
+    suffix = resolved_target.suffix.lower()
+    if suffix == '.json':
+        media_type = 'application/json'
+    elif suffix in {'.md', '.markdown'}:
+        media_type = 'text/markdown'
+    elif suffix in {'.txt', '.log', '.cfg', '.yaml', '.yml'}:
+        media_type = 'text/plain'
+    else:
+        media_type = 'application/octet-stream'
+
+    return FileResponse(
+        resolved_target,
+        media_type=media_type,
+        filename=safe_name
+    )
+
+
+@app.delete("/api/runs/{run_id}")
+async def delete_run(run_id: str):
+    """Delete all artifacts for a run to reclaim disk space."""
+    run_dir = get_run_directory(run_id)
+    if not run_dir.exists():
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    shutil.rmtree(run_dir, ignore_errors=True)
+    run_jobs.pop(run_id, None)
+    return {"status": "deleted", "run_id": run_id}
+
+
 @app.get("/api/runs/{run_id}/report", response_model=ReportResponse)
 async def get_run_report(run_id: str):
     """
@@ -1402,7 +1781,7 @@ async def get_run_report(run_id: str):
     from report.pretty import render_pretty
     
     # Find run artifacts
-    artifacts_dir = Path.home() / '.mdp' / 'runs' / run_id
+    artifacts_dir = get_run_directory(run_id)
     json_report_path = artifacts_dir / 'report.json'
     
     if not json_report_path.exists():
@@ -1455,7 +1834,7 @@ async def get_run_diff(run_id: str, max_lines: int = 200):
     """
     import difflib
     
-    artifacts_dir = Path.home() / '.mdp' / 'runs' / run_id
+    artifacts_dir = get_run_directory(run_id)
     input_path = artifacts_dir / 'input.txt'
     output_path = artifacts_dir / 'output.md'
     rejected_path = artifacts_dir / 'output.rejected.md'
@@ -1517,7 +1896,7 @@ async def get_run_result(run_id: str):
     Get result summary for a completed run.
     Returns paths to all artifacts and exit code.
     """
-    artifacts_dir = Path.home() / '.mdp' / 'runs' / run_id
+    artifacts_dir = get_run_directory(run_id)
     
     # Check for various artifacts
     output_path = artifacts_dir / 'output.md'
@@ -1527,12 +1906,14 @@ async def get_run_result(run_id: str):
     stats_path = artifacts_dir / 'stats.json'
     
     # Determine exit code from job state or files
-    exit_code = 0
+    metadata = load_run_metadata(run_id) or {}
+
+    exit_code = metadata.get('exit_code', 0)
     if rejected_path.exists():
         exit_code = 3  # Validation failed
     elif run_id in run_jobs:
         result = run_jobs[run_id].get('result', {})
-        exit_code = result.get('exit_code', 0)
+        exit_code = result.get('exit_code', exit_code)
     
     return ResultResponse(
         exit_code=exit_code,
@@ -1548,7 +1929,7 @@ async def get_artifact(run_id: str, name: str):
     Download a specific artifact file.
     name can be: output, plan, report, rejected, input
     """
-    artifacts_dir = Path.home() / '.mdp' / 'runs' / run_id
+    artifacts_dir = get_run_directory(run_id)
     
     # Map name to file path
     file_map = {

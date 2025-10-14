@@ -51,6 +51,36 @@ export interface WebSocketMessage {
   run_id?: string;     // Phase 11 PR-2: Run ID for accessing artifacts
 }
 
+export interface RunSummary {
+  run_id: string;
+  status: string;
+  created_at: string;
+  completed_at?: string;
+  steps: string[];
+  models: Record<string, string>;
+  exit_code?: number;
+  input_name?: string;
+  input_size?: number;
+  artifact_count: number;
+  total_size?: number;
+  has_rejected?: boolean;
+}
+
+export interface ArtifactInfo {
+  name: string;
+  size_bytes: number;
+  modified_at: string;
+  media_type: string;
+  is_text: boolean;
+  preview?: string | null;
+}
+
+export interface ArtifactListResponse {
+  run_id: string;
+  artifacts: ArtifactInfo[];
+  total_size: number;
+}
+
 class ApiService {
   private ws: WebSocket | null = null;
   private clientId: string = Math.random().toString(36).substring(7);
@@ -465,7 +495,7 @@ class ApiService {
     pretty_report: string;
     json_report_path: string | null;
   }> {
-    const response = await fetch(`${API_BASE_URL}/runs/${runId}/report`);
+    const response = await fetch(`${API_BASE_URL}/runs/${encodeURIComponent(runId)}/report`);
     if (!response.ok) {
       throw new Error('Failed to fetch run report');
     }
@@ -478,7 +508,7 @@ class ApiService {
     has_more: boolean;
     rejected: boolean;
   }> {
-    const response = await fetch(`${API_BASE_URL}/runs/${runId}/diff?max_lines=${maxLines}`);
+    const response = await fetch(`${API_BASE_URL}/runs/${encodeURIComponent(runId)}/diff?max_lines=${maxLines}`);
     if (!response.ok) {
       throw new Error('Failed to fetch run diff');
     }
@@ -493,7 +523,7 @@ class ApiService {
     plan_path: string | null;
     json_report_path: string | null;
   }> {
-    const response = await fetch(`${API_BASE_URL}/runs/${runId}/result`);
+    const response = await fetch(`${API_BASE_URL}/runs/${encodeURIComponent(runId)}/result`);
     if (!response.ok) {
       throw new Error('Failed to fetch run result');
     }
@@ -502,9 +532,57 @@ class ApiService {
 
   // Phase 11 PR-2: Download an artifact file
   async downloadArtifact(runId: string, name: string): Promise<Blob> {
-    const response = await fetch(`${API_BASE_URL}/artifact?run_id=${runId}&name=${name}`);
+    const params = new URLSearchParams({ run_id: runId, name });
+    const response = await fetch(`${API_BASE_URL}/artifact?${params.toString()}`);
     if (!response.ok) {
       throw new Error(`Failed to download artifact: ${name}`);
+    }
+    return await response.blob();
+  }
+
+  // Phase 11 PR-3: List historical runs
+  async listRuns(): Promise<RunSummary[]> {
+    const response = await fetch(`${API_BASE_URL}/runs`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch run history');
+    }
+    const data = await response.json();
+    return data.runs ?? [];
+  }
+
+  // Phase 11 PR-3: List artifacts for a run
+  async listRunArtifacts(runId: string): Promise<ArtifactListResponse> {
+    const response = await fetch(`${API_BASE_URL}/runs/${encodeURIComponent(runId)}/artifacts`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch run artifacts');
+    }
+    return await response.json();
+  }
+
+  // Phase 11 PR-3: Delete a run and its artifacts
+  async deleteRun(runId: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/runs/${encodeURIComponent(runId)}`, {
+      method: 'DELETE'
+    });
+    if (!response.ok) {
+      throw new Error('Failed to delete run');
+    }
+  }
+
+  // Phase 11 PR-3: Download all artifacts as a ZIP
+  async downloadRunArchive(runId: string): Promise<Blob> {
+    const response = await fetch(`${API_BASE_URL}/runs/${encodeURIComponent(runId)}/artifacts/archive`);
+    if (!response.ok) {
+      throw new Error('Failed to download run archive');
+    }
+    return await response.blob();
+  }
+
+  // Phase 11 PR-3: Download specific artifact by filename
+  async downloadRunArtifact(runId: string, artifactName: string): Promise<Blob> {
+    const response = await fetch(`${API_BASE_URL}/runs/${encodeURIComponent(runId)}/artifacts/${encodeURIComponent(artifactName)}`);
+    if (!response.ok) {
+      throw new Error('Failed to download artifact');
     }
     return await response.blob();
   }
