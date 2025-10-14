@@ -5,9 +5,9 @@ while enforcing TTS safety hazards and Markdown integrity.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 import json
 import unicodedata
 import re
@@ -35,15 +35,19 @@ class Decision:
     before: str
     after: str
     span: Tuple[int, int]
+    metadata: Optional[dict] = None
 
     def to_dict(self) -> dict:
-        return {
+        record = {
             "stage": self.stage,
             "rule": self.rule,
             "before": self.before,
             "after": self.after,
             "span": list(self.span),
         }
+        if self.metadata:
+            record["metadata"] = self.metadata
+        return record
 
 
 class DecisionLogger:
@@ -79,6 +83,14 @@ class DecisionLogger:
 _SPACED_PATTERN = re.compile(r"(?iu)\b\w(?:[\s,\-]\w){3,}\b")
 _UPPER_PATTERN = re.compile(r"\b[A-Z]{6,}\b")
 
+_ACRONYM_WHITELIST: set[str] = set()
+
+
+def set_acronym_whitelist(items: Iterable[str]) -> None:
+    """Update the in-memory whitelist for acronym preservation."""
+    global _ACRONYM_WHITELIST
+    _ACRONYM_WHITELIST = {item.strip().upper() for item in items if item and item.strip()}
+
 
 def _is_stylized(char: str) -> bool:
     if not char:
@@ -100,7 +112,7 @@ def _is_stylized(char: str) -> bool:
     return "SMALL CAPITAL" in name or "MODIFIER LETTER" in name
 
 
-def detect_hazards(text: str) -> List[HazardSpan]:
+def detect_hazards(text: str, acronyms: Optional[Iterable[str]] = None) -> List[HazardSpan]:
     """Return hazard spans (by index) detected in *text*.
 
     Hazards include spaced letters, stylized Unicode, and long all-caps words
@@ -109,12 +121,20 @@ def detect_hazards(text: str) -> List[HazardSpan]:
     if not text:
         return []
 
+    if acronyms is None:
+        whitelist = _ACRONYM_WHITELIST
+    else:
+        whitelist = {item.strip().upper() for item in acronyms if item and item.strip()}
+
     spans: List[HazardSpan] = []
 
     for match in _SPACED_PATTERN.finditer(text):
         spans.append(HazardSpan(match.start(), match.end(), "spaced_letters"))
 
     for match in _UPPER_PATTERN.finditer(text):
+        token = match.group(0).upper()
+        if whitelist and token in whitelist:
+            continue
         spans.append(HazardSpan(match.start(), match.end(), "uppercase_non_acronym"))
 
     index = 0
@@ -155,13 +175,21 @@ def _shift_mask(mask: List[HazardSpan], pivot: int, delta: int) -> None:
             span.end += delta
 
 
-def _should_skip(before: str, after: str, stage: str) -> Optional[str]:
+def _should_skip(before: str, after: str, stage: str, acronyms: Optional[Iterable[str]]) -> Optional[str]:
     if not after:
         return None
-    if detect_hazards(after):
+    if detect_hazards(after, acronyms):
         return "hazard_detected"
-    if stage.startswith("tts") and before.isupper() and len(before.strip()) <= 5 and not after.isupper():
-        return "preserve_acronym"
+    stripped_before = before.strip()
+    if stage.startswith("tts") and stripped_before.isupper():
+        if acronyms is None:
+            whitelist = _ACRONYM_WHITELIST
+        else:
+            whitelist = {item.strip().upper() for item in acronyms if item and item.strip()}
+        if whitelist and stripped_before.upper() in whitelist:
+            return "preserve_acronym"
+        if len(stripped_before) <= 5 and not after.isupper():
+            return "preserve_acronym"
     return None
 
 
@@ -171,6 +199,8 @@ def _merge_stage(
     stage: str,
     mask: List[HazardSpan],
     logger: DecisionLogger,
+    stage_metadata: Optional[dict] = None,
+    acronyms: Optional[Iterable[str]] = None,
 ) -> Tuple[str, List[HazardSpan], dict]:
     if target_text is None or target_text == base_text:
         return base_text, mask, {"applied": 0, "skipped": 0}
@@ -192,16 +222,34 @@ def _merge_stage(
             if _intersects_mask(i1, i2, mask):
                 skip_reason = "protected_span"
             else:
-                skip_reason = _should_skip(before, after, stage)
+                skip_reason = _should_skip(before, after, stage, acronyms)
 
             if skip_reason:
                 result_segments.append(before)
                 stats["skipped"] += 1
-                logger.log(Decision(stage=stage, rule=f"skip:{skip_reason}", before=before, after=after, span=(i1, i2)))
+                logger.log(
+                    Decision(
+                        stage=stage,
+                        rule=f"skip:{skip_reason}",
+                        before=before,
+                        after=after,
+                        span=(i1, i2),
+                        metadata=stage_metadata,
+                    )
+                )
             else:
                 result_segments.append(after)
                 stats["applied"] += 1
-                logger.log(Decision(stage=stage, rule="apply", before=before, after=after, span=(i1, i2)))
+                logger.log(
+                    Decision(
+                        stage=stage,
+                        rule="apply",
+                        before=before,
+                        after=after,
+                        span=(i1, i2),
+                        metadata=stage_metadata,
+                    )
+                )
                 delta = len(after) - len(before)
                 if delta:
                     _shift_mask(mask, i2, delta)
@@ -219,6 +267,8 @@ def tie_break(
     tts_text: Optional[str],
     hazard_mask: List[HazardSpan],
     logger: Optional[DecisionLogger] = None,
+    stage_metadata: Optional[Dict[str, dict]] = None,
+    acronym_whitelist: Optional[Iterable[str]] = None,
 ) -> Tuple[str, dict]:
     """Perform deterministic merge honoring stage priority.
 
@@ -230,12 +280,29 @@ def tie_break(
 
     current_text = prepass_text or ""
 
+    metadata = stage_metadata or {}
     if grammar_text is not None:
-        current_text, mask_copy, grammar_stats = _merge_stage(current_text, grammar_text, "grammar", mask_copy, logger)
+        current_text, mask_copy, grammar_stats = _merge_stage(
+            current_text,
+            grammar_text,
+            "grammar",
+            mask_copy,
+            logger,
+            metadata.get("grammar"),
+            acronym_whitelist,
+        )
         stats_summary["grammar"] = grammar_stats
 
     if tts_text is not None:
-        current_text, mask_copy, tts_stats = _merge_stage(current_text, tts_text, "tts-fixer", mask_copy, logger)
+        current_text, mask_copy, tts_stats = _merge_stage(
+            current_text,
+            tts_text,
+            "tts-fixer",
+            mask_copy,
+            logger,
+            metadata.get("fixer"),
+            acronym_whitelist,
+        )
         stats_summary["tts"] = tts_stats
 
     stats_summary["hazard_spans_protected"] = len(hazard_mask)
@@ -265,10 +332,10 @@ def _check_brackets(text: str) -> Optional[str]:
     return None
 
 
-def postcheck(text: str) -> dict:
+def postcheck(text: str, acronym_whitelist: Optional[Iterable[str]] = None) -> dict:
     """Validate final text for hazards and basic Markdown integrity."""
     errors = []
-    hazards = detect_hazards(text)
+    hazards = detect_hazards(text, acronym_whitelist)
     if hazards:
         errors.append({"type": "hazard", "spans": [span.to_dict() for span in hazards]})
 
