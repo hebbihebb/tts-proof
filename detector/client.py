@@ -27,7 +27,9 @@ class ModelClient:
         self.api_base = config.get('api_base', 'http://127.0.0.1:1234/v1')
         self.model = config.get('model', 'qwen-1_8b-instruct')
         self.max_context_tokens = config.get('max_context_tokens', 1024)
-        self.timeout_s = config.get('timeout_s', 8)
+        requested_timeout = config.get('timeout_s', 45)
+        # Allow slow local inference servers (LM Studio) to finish first response without tripping the client
+        self.timeout_s = max(requested_timeout, 15)
         self.retries = config.get('retries', 1)
         self.temperature = config.get('temperature', 0.2)
         self.top_p = config.get('top_p', 0.9)
@@ -65,7 +67,7 @@ class ModelClient:
                 response = requests.post(
                     f"{self.api_base}/chat/completions",
                     json=payload,
-                    timeout=self.timeout_s
+                    timeout=(10, self.timeout_s)
                 )
                 
                 if response.status_code != 200:

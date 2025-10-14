@@ -11,13 +11,26 @@ interface LogAreaProps {
 export const LogArea: React.FC<LogAreaProps> = ({
   logs
 }) => {
-  const logEndRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const shouldAutoScrollRef = useRef(true);
+
   useEffect(() => {
-    // Scroll to bottom when logs change
-    logEndRef.current?.scrollIntoView({
-      behavior: 'smooth'
-    });
+    if (!containerRef.current) {
+      return;
+    }
+    if (shouldAutoScrollRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
   }, [logs]);
+
+  const handleScroll = () => {
+    if (!containerRef.current) {
+      return;
+    }
+    const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+    const distanceFromBottom = scrollHeight - (scrollTop + clientHeight);
+    shouldAutoScrollRef.current = distanceFromBottom < 40;
+  };
   const getLogTypeStyles = (type: LogEntry['type']) => {
     switch (type) {
       case 'error':
@@ -36,7 +49,11 @@ export const LogArea: React.FC<LogAreaProps> = ({
           Process Log
         </h3>
       </div>
-      <div className="p-2 h-[calc(100%-30px)] overflow-y-auto font-mono text-sm">
+      <div
+        className="p-2 h-[calc(100%-30px)] overflow-y-auto font-mono text-sm"
+        ref={containerRef}
+        onScroll={handleScroll}
+      >
         {logs.length === 0 ? <p className="text-light-subtext1 dark:text-catppuccin-subtext1 italic">
             No logs yet. Start processing to see output here.
           </p> : logs.map(log => <div key={log.id} className="mb-1.5">
@@ -45,7 +62,6 @@ export const LogArea: React.FC<LogAreaProps> = ({
               </span>{' '}
               <span className={getLogTypeStyles(log.type)}>{log.message}</span>
             </div>)}
-        <div ref={logEndRef} />
       </div>
     </div>;
 };

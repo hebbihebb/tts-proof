@@ -1,23 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ThemeProvider, useTheme } from './components/ThemeContext';
 import { ThemeToggle } from './components/ThemeToggle';
-import { FileSelector } from './components/FileSelector';
-import { ModelPicker } from './components/ModelPicker';
 import { PromptEditor } from './components/PromptEditor';
-import { ProgressBar } from './components/ProgressBar';
-import { LogArea } from './components/LogArea';
-import { PreviewWindow } from './components/PreviewWindow';
-import { Button } from './components/Button';
-import { FileAnalysis } from './components/FileAnalysis';
-import { ChunkSizeControl } from './components/ChunkSizeControl';
-import { PrepassControl } from './components/PrepassControl';
-import { StepToggles } from './components/StepToggles';  // Phase 11 PR-1
-import { ReportDisplay } from './components/ReportDisplay';  // Phase 11 PR-2
-import { DiffViewer } from './components/DiffViewer';  // Phase 11 PR-2
-import { EditIcon, PlayIcon, SaveIcon, Square, FolderIcon, FolderOpen, FlaskConical, FileText, BarChart3, Download, RotateCcw } from 'lucide-react';
-import { apiService, WebSocketMessage } from './services/api';
 import { RunHistory } from './components/RunHistory';
 import { ArtifactBrowser } from './components/ArtifactBrowser';
+import { ReportDisplay } from './components/ReportDisplay';
+import { DiffViewer } from './components/DiffViewer';
+import { ConnectionPanel } from './components/ConnectionPanel';
+import { PresetPanel } from './components/PresetPanel';
+import { InputPanel } from './components/InputPanel';
+import { OptionsPanel } from './components/OptionsPanel';
+import { RunPanel } from './components/RunPanel';
+import { Button } from './components/Button';
+import { AppStoreProvider, useAppStore } from './state/appStore';
+import { apiService, WebSocketMessage } from './services/api';
+import { PrepassControlHandle } from './components/PrepassControl';
 // Fallback prompt if API fails to load
 const FALLBACK_PROMPT = `You are a grammar and spelling corrector for Markdown text.
 

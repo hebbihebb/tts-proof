@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronDownIcon, RefreshCwIcon, EditIcon } from 'lucide-react';
-import { apiService, Model } from '../services/api';
+import { apiService } from '../services/api';
 import { EndpointConfig } from './EndpointConfig';
+
+interface LegacyModel {
+  id: string;
+  name: string;
+  description: string;
+}
 
 interface ModelPickerProps {
   onModelSelect: (modelId: string) => void;
@@ -17,8 +23,8 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
   label
 }) => {
   const [isOpen, setIsOpen] = useState<boolean>(false);
-  const [models, setModels] = useState<Model[]>([]);
-  const [selectedModel, setSelectedModel] = useState<Model | null>(null);
+  const [models, setModels] = useState<LegacyModel[]>([]);
+  const [selectedModel, setSelectedModel] = useState<LegacyModel | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [isEndpointConfigOpen, setIsEndpointConfigOpen] = useState<boolean>(false);
@@ -31,11 +37,19 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
         setIsLoading(true);
       }
       
-      const fetchedModels = await apiService.fetchModels(currentEndpoint);
-      setModels(fetchedModels);
-      
-      if (!selectedModel && fetchedModels.length > 0) {
-        const defaultModel = fetchedModels[0];
+      const fetchedIds = await apiService.fetchModels({
+        provider: 'openai-compatible',
+        baseUrl: currentEndpoint,
+      });
+      const synthesizedModels = fetchedIds.map<LegacyModel>((id) => ({
+        id,
+        name: id.replace(/[_:-]/g, ' '),
+        description: id,
+      }));
+      setModels(synthesizedModels);
+
+      if (!selectedModel && synthesizedModels.length > 0) {
+        const defaultModel = synthesizedModels[0];
         setSelectedModel(defaultModel);
         onModelSelect(defaultModel.id);
       }
@@ -50,7 +64,7 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
   useEffect(() => {
     fetchModels();
   }, []);
-  const handleModelSelect = (model: Model) => {
+  const handleModelSelect = (model: LegacyModel) => {
     setSelectedModel(model);
     onModelSelect(model.id);
     setIsOpen(false);

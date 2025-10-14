@@ -6,7 +6,7 @@ Strict validation for detector JSON output. Each plan is an array of replacement
 """
 
 import re
-from typing import List, Dict, Any, Tuple, Optional
+from typing import List, Dict, Any, Tuple, Optional, Iterable
 from dataclasses import dataclass
 
 
@@ -27,6 +27,36 @@ BLOCKED_REASONS = {
 
 # Forbidden characters in 'replace' field (Markdown/meta chars)
 FORBIDDEN_REPLACE_CHARS = set('`*_[]()~<>')
+
+
+def _normalize_reason(reason: str, allowed: Iterable[str]) -> Optional[str]:
+    """Map free-form reason strings to an allowed detector category."""
+    if not isinstance(reason, str):
+        return None
+
+    trimmed = reason.strip()
+    if not trimmed:
+        return None
+
+    canonical_allowed = {entry.upper().replace('-', '_'): entry for entry in allowed}
+    normalized = re.sub(r'[^A-Z]', '_', trimmed.upper())
+
+    # Direct match (ignoring punctuation/spacing)
+    if normalized in canonical_allowed:
+        return canonical_allowed[normalized]
+
+    # Heuristic mapping based on keywords
+    lowered = trimmed.lower()
+    if any(token in lowered for token in ('unicode', 'diacritic', 'accent', 'stylized')):
+        return 'UNICODE_STYLIZED' if 'UNICODE_STYLIZED' in allowed else None
+    if any(token in lowered for token in ('spaced', 'letter spacing', 'letter-spacing')):
+        return 'TTS_SPACED' if 'TTS_SPACED' in allowed else None
+    if any(token in lowered for token in ('case', 'uppercase', 'lowercase', 'caps')):
+        return 'CASE_GLITCH' if 'CASE_GLITCH' in allowed else None
+    if any(token in lowered for token in ('punct', 'dash', 'hyphen', 'ellipsis', 'quote', 'divider')):
+        return 'SIMPLE_PUNCT' if 'SIMPLE_PUNCT' in allowed else None
+
+    return None
 
 
 @dataclass
@@ -106,18 +136,23 @@ def validate_item(item: Dict[str, Any], config: Dict[str, Any]) -> Tuple[bool, s
     
     # Check against allowed reasons
     allowed = config.get('allow_categories', list(ALLOWED_REASONS))
-    if reason not in allowed:
+    canonical_reason = _normalize_reason(reason, allowed)
+    if canonical_reason is None:
         return False, f"'reason' '{reason}' not in allowed categories: {allowed}"
-    
+
     # Check against blocked reasons
     blocked = config.get('block_categories', list(BLOCKED_REASONS))
-    if reason in blocked:
+    if canonical_reason in blocked:
         return False, f"'reason' '{reason}' is blocked"
     
-    # Validate reason length
+    # Validate reason length (using canonical form)
+    reason = canonical_reason
     max_reason_chars = config.get('max_reason_chars', 64)
     if len(reason) > max_reason_chars:
         return False, f"'reason' exceeds {max_reason_chars} chars"
+
+    # Persist canonical reason for downstream steps
+    item['reason'] = canonical_reason
     
     return True, ""
 
@@ -236,3 +271,4 @@ def merge_plans(plans: List[List[ReplacementItem]]) -> List[ReplacementItem]:
                 merged.append(item)
     
     return merged
+

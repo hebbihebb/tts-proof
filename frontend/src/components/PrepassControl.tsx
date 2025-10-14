@@ -1,7 +1,11 @@
-import React, { useState } from 'react';
+import React, { forwardRef, useImperativeHandle, useState } from 'react';
 import { Button } from './Button';
 import { Upload, Play, FileText, CheckCircle, XCircle, Square } from 'lucide-react';
 import { apiService } from '../services/api';
+
+export interface PrepassControlHandle {
+  runPrepass: () => void;
+}
 
 interface PrepassControlProps {
   onPrepassComplete: (report: any) => void;
@@ -23,7 +27,7 @@ interface PrepassControlProps {
   prepassTotalChunks: number;
 }
 
-export const PrepassControl: React.FC<PrepassControlProps> = ({
+export const PrepassControl = forwardRef<PrepassControlHandle, PrepassControlProps>(({
   onPrepassComplete,
   onPrepassClear,
   prepassReport,
@@ -41,7 +45,7 @@ export const PrepassControl: React.FC<PrepassControlProps> = ({
   prepassStatus,
   prepassChunksProcessed,
   prepassTotalChunks
-}) => {
+}, ref) => {
   const [isDragOver, setIsDragOver] = useState(false);
 
   const handleCancelPrepass = () => {
@@ -165,6 +169,10 @@ export const PrepassControl: React.FC<PrepassControlProps> = ({
     );
   };
 
+  useImperativeHandle(ref, () => ({
+    runPrepass: handleRunPrepass,
+  }));
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3">
@@ -264,4 +272,6 @@ export const PrepassControl: React.FC<PrepassControlProps> = ({
       )}
     </div>
   );
-};
+});
+
+PrepassControl.displayName = 'PrepassControl';

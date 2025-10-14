@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Iterable
 import json
 import logging
+from difflib import SequenceMatcher
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
@@ -53,6 +54,7 @@ def run_pipeline(
     """
     from . import markdown_adapter, prepass_basic, prepass_advanced, scrubber, grammar_assist
     
+    original_text = input_text
     text = input_text
     combined_stats: Dict[str, Any] = {}
     mask_table = None
@@ -66,10 +68,11 @@ def run_pipeline(
     if acronym_whitelist is not None:
         normalized_acronyms: List[str] = []
         for token in acronym_whitelist:
-            text = str(token).strip()
-            if not text:
+            token_str = str(token).strip()
+            if not token_str:
                 continue
-            normalized_acronyms.append(text.upper())
+            normalized_acronyms.append(token_str.upper())
+        # Preserve the working text buffer; only normalize the acronym list.
         acronym_whitelist = normalized_acronyms
         combined_stats['acronym_whitelist'] = normalized_acronyms
     
@@ -327,6 +330,36 @@ def run_pipeline(
         text = markdown_adapter.unmask(text, mask_table)
         logger.info("Unmasked Markdown structure")
     
+    final_text = text
+    total_chars = len(original_text)
+    if total_chars:
+        matcher = SequenceMatcher(a=original_text, b=final_text)
+        changed_chars = 0
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+            if tag == 'equal':
+                continue
+            if tag == 'replace':
+                changed_chars += max(i2 - i1, j2 - j1)
+            elif tag == 'delete':
+                changed_chars += i2 - i1
+            elif tag == 'insert':
+                changed_chars += j2 - j1
+        percent_changed = (changed_chars / total_chars) * 100.0
+        diff_stats = {
+            'changed_chars': changed_chars,
+            'total_chars': total_chars,
+            'percent_changed': round(percent_changed, 2),
+            'similarity_ratio': round(matcher.ratio(), 4),
+        }
+    else:
+        diff_stats = {
+            'changed_chars': 0,
+            'total_chars': 0,
+            'percent_changed': 0.0,
+            'similarity_ratio': 1.0,
+        }
+    combined_stats['diff'] = diff_stats
+
     return text, combined_stats
 
 

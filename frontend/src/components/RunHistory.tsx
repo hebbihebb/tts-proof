@@ -94,9 +94,6 @@ export const RunHistory: React.FC<RunHistoryProps> = ({
   };
 
   const handleDelete = async (runId: string) => {
-    const confirmed = window.confirm(`Delete all artifacts for run ${runId}? This cannot be undone.`);
-    if (!confirmed) return;
-
     try {
       await apiService.deleteRun(runId);
       onLog?.(`Deleted run ${runId}`, 'warning');

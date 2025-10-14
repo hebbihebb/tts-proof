@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, UploadFile, File
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, UploadFile, File, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
@@ -227,9 +227,10 @@ async def run_prepass_with_websocket(input_path: Path, api_base: str, model: str
     report_chunks = []
     all_problems = []
     current_byte = 0
+    chunk_errors: List[str] = []
     
     print(f"Starting to process {len(text_chunks)} chunks...")
-    
+
     try:
         for chunk_idx, (original_idx, content) in enumerate(text_chunks):
             # Check for cancellation
@@ -257,10 +258,17 @@ async def run_prepass_with_websocket(input_path: Path, api_base: str, model: str
                 
                 print(f"Chunk {chunk_idx + 1} completed with {len(replacements)} replacements")
             except Exception as chunk_error:
-                print(f"Error processing chunk {chunk_idx + 1}: {chunk_error}")
-                # Continue with empty replacements for this chunk
+                error_message = f"Prepass chunk {chunk_idx + 1} failed: {chunk_error}"
+                print(error_message)
+                chunk_errors.append(error_message)
+                if client_id:
+                    await manager.send_message(client_id, {
+                        "type": "error",
+                        "source": "prepass",
+                        "message": error_message
+                    })
                 replacements = []
-            
+
             # Add to report
             chunk_report = {
                 "id": chunk_idx + 1,
@@ -328,26 +336,30 @@ async def run_prepass_with_websocket(input_path: Path, api_base: str, model: str
             "total_chunks": total_chunks,
             "total_problems": len(all_problems)
         },
-        "chunks": report_chunks
+        "chunks": report_chunks,
+        "warnings": chunk_errors
     }
-    
     if client_id:
+        job_state = prepass_jobs.get(client_id, {})
         # Check if cancelled before sending completion
-        if prepass_jobs.get(client_id, {}).get("status") == "cancelled":
+        if job_state.get("status") == "cancelled":
             await manager.send_message(client_id, {
                 "type": "error",
                 "source": "prepass",
                 "message": "Prepass cancelled by user"
             })
         else:
+            completion_message = f"Prepass completed! Found {len(unique_problems)} unique problems in {total_chunks} chunks."
+            if chunk_errors:
+                completion_message += f" (Warnings: {len(chunk_errors)} chunk{'s' if len(chunk_errors) != 1 else ''} failed.)"
             await manager.send_message(client_id, {
                 "type": "completed",
                 "source": "prepass",
                 "progress": 100,
-                "message": f"Prepass completed! Found {len(unique_problems)} unique problems in {total_chunks} chunks.",
+                "message": completion_message,
                 "result": report
             })
-        
+
         # Clean up job tracking
         if client_id in prepass_jobs:
             del prepass_jobs[client_id]
@@ -565,37 +577,69 @@ async def test_endpoint(api_base: str, model: str = "default"):
         }
 
 @app.get("/api/models", response_model=List[Model])
-async def get_models(api_base: Optional[str] = None):
+async def get_models(
+    api_base: Optional[str] = None,
+    provider: Optional[str] = None,
+    api_key: Optional[str] = None,
+    authorization: Optional[str] = Header(default=None),
+):
     """Fetch available models from LM Studio or custom endpoint."""
     try:
         endpoint = api_base or DEFAULT_API_BASE
         print(f"Models endpoint called with api_base: {endpoint}")
+        if provider:
+            print(f"Provider hint: {provider}")
+        forwarded_auth = authorization
+        if not forwarded_auth and api_key:
+            forwarded_auth = f"Bearer {api_key}"
+        if forwarded_auth:
+            print("Forwarding Authorization header to upstream model endpoint")
+        headers = {"Authorization": forwarded_auth} if forwarded_auth else None
         
         # First try to get from LM Studio or custom endpoint
         import requests
         print(f"Fetching models from {endpoint}/models")
-        response = requests.get(f"{endpoint}/models", timeout=5)
+        response = requests.get(f"{endpoint}/models", timeout=5, headers=headers)
         response.raise_for_status()
         data = response.json()
-        print(f"LM Server returned: {len(data.get('data', []))} models")
-        
+        candidate_models = data.get("data")
+        if not isinstance(candidate_models, list):
+            candidate_models = data.get("models")
+        if candidate_models is None:
+            candidate_models = data
+            if isinstance(candidate_models, dict):
+                candidate_models = candidate_models.get("result") or []
+        if isinstance(candidate_models, dict):
+            candidate_models = candidate_models.get("data", [])
+
+        print(f"LM Server raw model payload type: {type(candidate_models).__name__}")
         models = []
-        for model in data.get("data", []):
+        for entry in candidate_models or []:
+            if isinstance(entry, str):
+                model_id = entry
+            else:
+                model_id = entry.get("id") or entry.get("model") or entry.get("name")
+            if not model_id:
+                continue
             # Only include non-embedding models for text generation
-            if "embedding" not in model["id"].lower() and "reranker" not in model["id"].lower():
-                models.append(Model(
-                    id=model["id"],
-                    name=model["id"].replace("_", " ").title(),
-                    description=f"Model: {model['id']}"
-                ))
+            model_id_lower = model_id.lower()
+            if "embedding" in model_id_lower or "reranker" in model_id_lower:
+                continue
+            models.append(Model(
+                id=model_id,
+                name=model_id.replace("_", " ").title(),
+                description=f"Model: {model_id}"
+            ))
+
+        print(f"LM Server returned {len(models)} filtered models")
         
         if not models:
             # Return default model if no text generation models found
             models = [
                 Model(id="default", name="Default Model", description="Local LLM model")
             ]
-        
-        print(f"Returning {len(models)} text generation models")
+        else:
+            print(f"Returning {len(models)} text generation models")
         return models
         
     except Exception as e:
@@ -889,22 +933,31 @@ async def run_pipeline_endpoint(request: RunRequest):
     run_id = str(uuid.uuid4())
     client_id = request.client_id or run_id
     
-    # Validate blessed models
+    # Validate blessed models without blocking the run; record warnings for visibility.
     blessed = mdp_config.get_blessed_models()
     detector_model = request.models.get('detector')
     fixer_model = request.models.get('fixer')
-    
-    if detector_model and detector_model not in blessed['detector']:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Detector model '{detector_model}' is not blessed. Allowed: {blessed['detector']}"
+
+    def _normalize(name: Optional[str]) -> Optional[str]:
+        return name.lower() if isinstance(name, str) else None
+
+    detector_allowed = {_normalize(model) for model in blessed.get('detector', []) if model}
+    fixer_allowed = {_normalize(model) for model in blessed.get('fixer', []) if model}
+
+    warnings: List[str] = []
+    unblessed: Dict[str, str] = {}
+
+    if detector_model and detector_allowed and _normalize(detector_model) not in detector_allowed:
+        warnings.append(
+            f"Detector model '{detector_model}' is not in the blessed list {blessed.get('detector', [])}; proceeding anyway."  # noqa: E501
         )
-    
-    if fixer_model and fixer_model not in blessed['fixer']:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Fixer model '{fixer_model}' is not blessed. Allowed: {blessed['fixer']}"
+        unblessed['detector'] = detector_model
+
+    if fixer_model and fixer_allowed and _normalize(fixer_model) not in fixer_allowed:
+        warnings.append(
+            f"Fixer model '{fixer_model}' is not in the blessed list {blessed.get('fixer', [])}; proceeding anyway."  # noqa: E501
         )
+        unblessed['fixer'] = fixer_model
     
     # Validate input file exists
     input_path = Path(request.input_path)
@@ -929,6 +982,7 @@ async def run_pipeline_endpoint(request: RunRequest):
         input_size=input_size,
         steps=request.steps,
         models=request.models,
+        unblessed_models=unblessed or None,
         client_id=client_id
     )
     
@@ -940,11 +994,15 @@ async def run_pipeline_endpoint(request: RunRequest):
         "input_name": input_name,
         "steps": request.steps,
         "models": request.models,
+        "unblessed_models": unblessed or None,
         "progress": 0,
         "current_step": None,
         "result": None,
         "error": None
     }
+    run_jobs[run_id]["warnings"] = warnings
+
+    update_run_metadata(run_id, warnings=warnings)
     
     # Start processing in background
     asyncio.create_task(run_pipeline_job(run_id, request))
@@ -1015,6 +1073,13 @@ async def run_pipeline_job(run_id: str, request: RunRequest):
             "message": f"Starting pipeline with {len(request.steps)} steps...",
             "steps": request.steps
         })
+
+        for warning in run_jobs[run_id].get("warnings", []):
+            await manager.send_message(client_id, {
+                "type": "progress",
+                "source": "pipeline",
+                "message": warning,
+            })
         
         # Track progress through steps
         total_steps = len(request.steps)

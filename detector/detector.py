@@ -104,6 +104,7 @@ def process_text_node(node_text: str, config: Dict[str, Any], client: ModelClien
     all_plans = []
     
     for chunk_text, start_offset, end_offset in chunks:
+        logger.debug("Detector chunk preview: %s", chunk_text[:256])
         # Build prompts
         system_prompt = SYSTEM_PROMPT.format(
             max_items=config.get('json_max_items', 16)
@@ -125,6 +126,8 @@ def process_text_node(node_text: str, config: Dict[str, Any], client: ModelClien
             stats['json_parse_errors'] += 1
             logger.warning(f"JSON extraction failed: {json_error}")
             continue
+        if isinstance(json_plan, list) and not json_plan:
+            logger.info("Detector model returned empty plan. Raw response: %s", response)
         
         # Validate plan
         valid_items, chunk_rejections = validate_plan(json_plan, chunk_text, config)

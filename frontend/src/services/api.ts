@@ -2,12 +2,6 @@
 const API_BASE_URL = 'http://localhost:8000/api';
 const WS_BASE_URL = 'ws://localhost:8000/ws';
 
-export interface Model {
-  id: string;
-  name: string;
-  description: string;
-}
-
 export interface ProcessRequest {
   content: string;
   model_name?: string;
@@ -93,30 +87,74 @@ export interface AcronymListResponse {
   items: string[];
 }
 
+export interface FetchModelsParams {
+  provider: string;
+  baseUrl: string;
+  apiKey?: string;
+}
+
+export interface RunServerPayload {
+  provider: string;
+  baseUrl: string;
+  apiKey?: string;
+}
+
+export interface RunModelsPayload {
+  grammar?: string;
+  detector?: string;
+  fixer?: string;
+}
+
+export interface RunOverridesPayload extends RunModelsPayload {}
+
 class ApiService {
   private ws: WebSocket | null = null;
   private clientId: string = Math.random().toString(36).substring(7);
 
-  async fetchModels(apiBase?: string): Promise<Model[]> {
-    try {
-      const url = new URL(`${API_BASE_URL}/models`);
-      if (apiBase) {
-        url.searchParams.set('api_base', apiBase);
-      }
-      
-      const response = await fetch(url.toString());
-      if (!response.ok) {
-        throw new Error('Failed to fetch models');
-      }
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching models:', error);
-      // Return default models as fallback
-      return [
-        { id: 'default', name: 'Default Model', description: 'Local LLM model' },
-        { id: 'gpt-4', name: 'GPT-4', description: 'OpenAI GPT-4 model' }
-      ];
+  async fetchModels(params: FetchModelsParams): Promise<string[]> {
+    const query = new URLSearchParams({
+      provider: params.provider,
+      api_base: params.baseUrl,
+    });
+    const response = await fetch(`${API_BASE_URL}/models?${query.toString()}`, {
+      headers: params.apiKey ? { Authorization: `Bearer ${params.apiKey}` } : undefined,
+    });
+    if (!response.ok) {
+      const message = await response.text();
+      throw new Error(message || `Failed to fetch models (${response.status})`);
     }
+    const data = await response.json();
+
+    const normalizeEntry = (entry: unknown): string => {
+      if (typeof entry === 'string') {
+        return entry;
+      }
+      if (entry && typeof entry === 'object') {
+        const candidate = (entry as { id?: string; name?: string }).id ?? (entry as { name?: string }).name;
+        return typeof candidate === 'string' ? candidate : '';
+      }
+      return '';
+    };
+
+    if (Array.isArray(data)) {
+      return data
+        .map(normalizeEntry)
+        .filter((value: string): value is string => value.length > 0);
+    }
+
+    if (Array.isArray(data.models)) {
+      return data.models
+        .map(normalizeEntry)
+        .filter((value: string): value is string => value.length > 0);
+    }
+
+    if (Array.isArray(data.data)) {
+      return data.data
+        .map(normalizeEntry)
+        .filter((value: string): value is string => value.length > 0);
+    }
+
+    return [];
   }
 
   // Phase 11 PR-1: Get blessed models for detector and fixer roles
@@ -141,7 +179,10 @@ class ApiService {
   async runPipeline(request: {
     input_path: string;
     steps: string[];
-    models?: { detector?: string; fixer?: string };
+    models?: RunModelsPayload;
+    server?: RunServerPayload;
+    preset?: string;
+    overrides?: RunOverridesPayload;
     report_pretty?: boolean;
     client_id?: string;
   }): Promise<{ run_id: string; status: string }> {

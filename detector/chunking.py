@@ -116,19 +116,10 @@ def should_skip_node(node_text: str, config: Dict[str, Any]) -> Tuple[bool, str]
     if not node_text or not node_text.strip():
         return True, "empty"
     
-    # Skip if mostly uppercase (likely a heading or shout)
-    uppercase_ratio = sum(1 for c in node_text if c.isupper()) / max(len(node_text), 1)
-    if uppercase_ratio > 0.8:
-        return True, "mostly_uppercase"
-    
     # Skip if looks like a URL
     if re.match(r'^https?://', node_text) or '//' in node_text:
         return True, "url"
     
-    # Skip if too many digits/symbols (threshold configurable)
-    non_alpha_ratio = sum(1 for c in node_text if not c.isalpha() and not c.isspace()) / max(len(node_text), 1)
-    max_non_alpha = config.get('max_non_alpha_ratio', 0.5)
-    if non_alpha_ratio > max_non_alpha:
-        return True, "code_ish"
+    # Allow uppercase-heavy or symbol-heavy spans through; the downstream validator will reject bad plans.
     
     return False, ""

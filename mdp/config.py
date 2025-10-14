@@ -75,8 +75,8 @@ DEFAULT_CONFIG = {
         'model': 'qwen/qwen3-4b-2507',
         'max_context_tokens': 1024,
         'max_output_chars': 2000,
-        'timeout_s': 8,
-        'retries': 1,
+    'timeout_s': 45,  # Give local LM Studio models enough time to return a plan
+    'retries': 1,
         'temperature': 0.2,
         'top_p': 0.9,
         'json_max_items': 16,
@@ -141,6 +141,12 @@ def load_config(path: str = None) -> Dict[str, Any]:
         with open(path, 'r', encoding='utf-8') as handle:
             user_config = yaml.safe_load(handle) or {}
         config = _deep_merge(config, user_config)
+
+    detector_config = config.get('detector', {})
+    if detector_config:
+        # Ensure previously persisted settings do not clamp the detector to a too-short timeout
+        detector_config['timeout_s'] = max(detector_config.get('timeout_s', 45), 30)
+
     return config
 
 
