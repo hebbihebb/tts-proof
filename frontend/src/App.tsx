@@ -12,10 +12,9 @@ import { FileAnalysis } from './components/FileAnalysis';
 import { ChunkSizeControl } from './components/ChunkSizeControl';
 import { PrepassControl } from './components/PrepassControl';
 import { StepToggles } from './components/StepToggles';  // Phase 11 PR-1
-import { BlessedModelPickers } from './components/BlessedModelPickers';  // Phase 11 PR-1
 import { ReportDisplay } from './components/ReportDisplay';  // Phase 11 PR-2
 import { DiffViewer } from './components/DiffViewer';  // Phase 11 PR-2
-import { EditIcon, PlayIcon, SaveIcon, Square, FolderIcon, FolderOpen, FlaskConical, FileText, BarChart3, Download } from 'lucide-react';
+import { EditIcon, PlayIcon, SaveIcon, Square, FolderIcon, FolderOpen, FlaskConical, FileText, BarChart3, Download, RotateCcw } from 'lucide-react';
 import { apiService, WebSocketMessage } from './services/api';
 import { RunHistory } from './components/RunHistory';
 import { ArtifactBrowser } from './components/ArtifactBrowser';
@@ -95,12 +94,15 @@ const AppContent = () => {
     'apply': true,
     'fix': true
   });
-  const [detectorModel, setDetectorModel] = useState<string>('qwen2.5-1.5b-instruct');
-  const [fixerModel, setFixerModel] = useState<string>('qwen2.5-1.5b-instruct');
-  const [blessedModels, setBlessedModels] = useState<{detector: string[], fixer: string[]}>({
-    detector: [],
-    fixer: []
-  });
+  const [presets, setPresets] = useState<Record<string, Record<string, any>>>({});
+  const [activePreset, setActivePreset] = useState<string>('default');
+  const [resolvedPreset, setResolvedPreset] = useState<Record<string, any>>({});
+  const [presetEnvOverrides, setPresetEnvOverrides] = useState<Record<string, string>>({});
+  const [presetSource, setPresetSource] = useState<string>('default');
+  const [isLoadingPresets, setIsLoadingPresets] = useState<boolean>(false);
+  const [acronymText, setAcronymText] = useState<string>('');
+  const [lastSavedAcronyms, setLastSavedAcronyms] = useState<string>('');
+  const [isSavingAcronyms, setIsSavingAcronyms] = useState<boolean>(false);
 
   // Phase 11 PR-2: Results display state
   const [completedRunId, setCompletedRunId] = useState<string | null>(null);
@@ -111,6 +113,112 @@ const AppContent = () => {
   const calculateEstimatedChunks = (text: string, size: number) => {
     if (!text) return 0;
     return Math.ceil(text.length / size);
+  };
+
+  const presetNames = Object.keys(presets).sort();
+  const resolvedGrammar = (resolvedPreset?.grammar ?? {}) as Record<string, any>;
+  const resolvedDetector = (resolvedPreset?.detector ?? {}) as Record<string, any>;
+  const resolvedFixer = (resolvedPreset?.fixer ?? {}) as Record<string, any>;
+  const envOverrideKeys = Object.keys(presetEnvOverrides || {});
+  const hasPresetEnvOverrides = envOverrideKeys.length > 0;
+  const normalizedAcronymText = acronymText.replace(/\r/g, '\n');
+  const hasAcronymChanges = normalizedAcronymText !== lastSavedAcronyms;
+  const presetSelectValue = presetNames.includes(activePreset) ? activePreset : '';
+  const acronymCount = normalizedAcronymText
+    ? normalizedAcronymText
+        .split('\n')
+        .map((token) => token.trim())
+        .filter(Boolean).length
+    : 0;
+
+  const renderModelSummary = (label: string, data?: Record<string, any>) => {
+    const hasCustomConfig = data && Object.keys(data).length > 0;
+    const provider = data?.provider ?? 'inherit';
+    const modelName = data?.model ?? 'inherit';
+    const endpoint = data?.base_url ?? data?.api_base;
+    const temperature = Object.prototype.hasOwnProperty.call(data ?? {}, 'temperature') ? data?.temperature : undefined;
+  const extraEntries = Object.entries(data || {}).filter(([key]) => !['provider', 'model', 'base_url', 'api_base', 'temperature'].includes(key));
+
+    return (
+      <div key={label} className="bg-light-crust dark:bg-catppuccin-crust p-3 rounded-lg border border-light-surface1 dark:border-catppuccin-surface1">
+        <div className="flex items-center justify-between text-xs uppercase tracking-wide text-gray-600 dark:text-gray-400">
+          <span>{label}</span>
+          <span>{provider}</span>
+        </div>
+        <div className="mt-1 text-sm font-medium text-light-text dark:text-catppuccin-text break-words">
+          {modelName}
+        </div>
+        {endpoint && (
+          <div className="mt-1 text-xs text-gray-600 dark:text-gray-400 break-all">
+            Endpoint: {endpoint}
+          </div>
+        )}
+        {temperature !== undefined && (
+          <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+            Temperature: {temperature}
+          </div>
+        )}
+        {extraEntries.map(([key, value]) => {
+          const formatted = typeof value === 'object' ? JSON.stringify(value) : String(value);
+          return (
+            <div key={key} className="mt-1 text-xs text-gray-600 dark:text-gray-400 break-words">
+              {key}: {formatted}
+            </div>
+          );
+        })}
+        {!hasCustomConfig && (
+          <div className="mt-2 text-xs italic text-gray-500 dark:text-gray-500">
+            Inherits project defaults
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const handlePresetChange = async (name: string) => {
+    if (name === activePreset) {
+      return;
+    }
+    try {
+      setIsLoadingPresets(true);
+      const data = await apiService.activatePreset(name);
+      setPresets(data.presets);
+      setActivePreset(data.active);
+      setResolvedPreset(data.resolved || {});
+      setPresetEnvOverrides(data.env_overrides || {});
+      setPresetSource(data.active_source || 'default');
+      addLog(`Preset switched to ${data.active}`, 'info');
+    } catch (error) {
+      console.error('Failed to activate preset:', error);
+      addLog(`Failed to activate preset ${name}`, 'error');
+    } finally {
+      setIsLoadingPresets(false);
+    }
+  };
+
+  const handleSaveAcronyms = async () => {
+    try {
+      setIsSavingAcronyms(true);
+      const entries = normalizedAcronymText
+        .split('\n')
+        .map((token) => token.trim())
+        .filter(Boolean);
+      const updated = await apiService.updateAcronyms(entries);
+      const formatted = updated.join('\n');
+      setAcronymText(formatted);
+      setLastSavedAcronyms(formatted);
+      addLog(`Acronym whitelist updated (${updated.length} items)`, 'success');
+    } catch (error) {
+      console.error('Failed to update acronyms:', error);
+      addLog('Failed to update acronym whitelist', 'error');
+    } finally {
+      setIsSavingAcronyms(false);
+    }
+  };
+
+  const handleResetAcronyms = () => {
+    setAcronymText(lastSavedAcronyms);
+    addLog('Reverted acronym edits', 'info');
   };
 
   // Load grammar prompt from backend on startup
@@ -156,26 +264,41 @@ Return JSON only:
     loadPrepassPrompt();
   }, []);
 
-  // Phase 11 PR-1: Load blessed models on startup
+  const refreshPresets = async () => {
+    try {
+      setIsLoadingPresets(true);
+      const data = await apiService.getPresets();
+      setPresets(data.presets);
+      setActivePreset(data.active);
+      setResolvedPreset(data.resolved || {});
+      setPresetEnvOverrides(data.env_overrides || {});
+      setPresetSource(data.active_source || 'default');
+      addLog(`Loaded presets (active: ${data.active})`, 'info');
+    } catch (error) {
+      console.error('Failed to load presets:', error);
+      addLog('Failed to load presets', 'warning');
+    } finally {
+      setIsLoadingPresets(false);
+    }
+  };
+
+  const refreshAcronyms = async () => {
+    try {
+      const items = await apiService.getAcronyms();
+      const formatted = items.join('\n');
+      setAcronymText(formatted);
+      setLastSavedAcronyms(formatted);
+      addLog(`Loaded acronym whitelist (${items.length} items)`, 'info');
+    } catch (error) {
+      console.error('Failed to load acronyms:', error);
+      addLog('Failed to load acronym whitelist', 'warning');
+    }
+  };
+
   useEffect(() => {
-    const loadBlessedModels = async () => {
-      try {
-        const models = await apiService.getBlessedModels();
-        setBlessedModels(models);
-        // Set default models if available
-        if (models.detector.length > 0) {
-          setDetectorModel(models.detector[0]);
-        }
-        if (models.fixer.length > 0) {
-          setFixerModel(models.fixer[0]);
-        }
-        addLog(`Loaded blessed models: ${models.detector.length} detector, ${models.fixer.length} fixer`, 'info');
-      } catch (error) {
-        console.error('Failed to load blessed models:', error);
-        addLog('Failed to load blessed models, using defaults', 'warning');
-      }
-    };
-    loadBlessedModels();
+    refreshPresets();
+    refreshAcronyms();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Save endpoint to localStorage when it changes
@@ -400,17 +523,12 @@ Return JSON only:
       });
 
       addLog(`Pipeline steps: ${steps.join(', ')}`, 'info');
-      addLog(`Detector model: ${detectorModel}`, 'info');
-      addLog(`Fixer model: ${fixerModel}`, 'info');
+      addLog(`Preset: ${activePreset}`, 'info');
 
       // Phase 11 PR-1: Call new unified /api/run endpoint
       const runResult = await apiService.runPipeline({
         input_path: uploadResult.temp_path,
-        steps: steps,
-        models: {
-          detector: detectorModel,
-          fixer: fixerModel
-        },
+        steps,
         report_pretty: true,
         client_id: clientId
       });
@@ -458,7 +576,6 @@ Return JSON only:
     }]);
   };
 
-  // Phase 11 PR-1: Handler for step toggles
   const handleToggleStep = (step: string) => {
     setEnabledSteps(prev => ({
       ...prev,
@@ -652,15 +769,90 @@ Return JSON only:
                   disabled={isProcessing}
                 />
 
-                {/* Phase 11 PR-1: Blessed Model Pickers */}
-                <BlessedModelPickers
-                  detectorModel={detectorModel}
-                  fixerModel={fixerModel}
-                  blessedModels={blessedModels}
-                  onDetectorChange={setDetectorModel}
-                  onFixerChange={setFixerModel}
-                  disabled={isProcessing}
-                />
+                {/* Phase 14A: Preset selector and acronym whitelist */}
+                <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <h3 className="text-md font-semibold mb-2 text-light-text dark:text-catppuccin-text">
+                    Model Preset
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 space-y-2 sm:space-y-0">
+                      <select
+                        className="flex-1 rounded-lg border border-light-surface1 dark:border-catppuccin-surface1 bg-white dark:bg-catppuccin-base px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-catppuccin-mauve"
+                        value={presetSelectValue}
+                        onChange={(event) => handlePresetChange(event.target.value)}
+                        disabled={isLoadingPresets || isProcessing || presetNames.length === 0}
+                      >
+                        <option value="" disabled>
+                          {presetNames.length === 0 ? 'No presets available' : 'Select a preset'}
+                        </option>
+                        {presetNames.map((name) => (
+                          <option key={name} value={name}>
+                            {name}
+                          </option>
+                        ))}
+                      </select>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={refreshPresets}
+                        isLoading={isLoadingPresets}
+                        icon={<RotateCcw className="w-4 h-4" />}
+                      >
+                        Refresh
+                      </Button>
+                    </div>
+                    <div className="text-xs text-gray-600 dark:text-gray-400">
+                      Active preset: <span className="font-semibold text-light-text dark:text-catppuccin-text">{activePreset}</span>
+                      {presetSource && (
+                        <span className="ml-2">• Source: {presetSource}</span>
+                      )}
+                      {hasPresetEnvOverrides && (
+                        <span className="ml-2">
+                          • Env overrides: {envOverrideKeys.join(', ')}
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      {renderModelSummary('Grammar', resolvedGrammar)}
+                      {renderModelSummary('Detector', resolvedDetector)}
+                      {renderModelSummary('Fixer', resolvedFixer)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <h3 className="text-md font-semibold mb-2 text-light-text dark:text-catppuccin-text">
+                    Acronym Whitelist
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                    Keep one acronym per line. These entries are preserved during hazard detection. Currently tracking {acronymCount} items.
+                  </p>
+                  <textarea
+                    className="w-full h-40 rounded-lg border border-light-surface1 dark:border-catppuccin-surface1 bg-white dark:bg-catppuccin-base px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-catppuccin-mauve"
+                    value={acronymText}
+                    onChange={(event) => setAcronymText(event.target.value)}
+                    disabled={isSavingAcronyms || isProcessing}
+                    spellCheck={false}
+                  />
+                  <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:space-x-3 space-y-2 sm:space-y-0">
+                    <Button
+                      onClick={handleSaveAcronyms}
+                      isLoading={isSavingAcronyms}
+                      disabled={!hasAcronymChanges}
+                      icon={<SaveIcon className="w-4 h-4" />}
+                    >
+                      Save Acronyms
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleResetAcronyms}
+                      disabled={!hasAcronymChanges || isSavingAcronyms}
+                      icon={<RotateCcw className="w-4 h-4" />}
+                    >
+                      Reset
+                    </Button>
+                  </div>
+                </div>
 
                 {/* Legacy: Keep old model picker and grammar prompt for backward compatibility */}
                 <div className="pt-4 border-t border-gray-200 dark:border-gray-700">

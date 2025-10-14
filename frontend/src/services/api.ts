@@ -81,6 +81,18 @@ export interface ArtifactListResponse {
   total_size: number;
 }
 
+export interface PresetListResponse {
+  presets: Record<string, Record<string, any>>;
+  active: string;
+  active_source: string;
+  resolved: Record<string, any>;
+  env_overrides: Record<string, string>;
+}
+
+export interface AcronymListResponse {
+  items: string[];
+}
+
 class ApiService {
   private ws: WebSocket | null = null;
   private clientId: string = Math.random().toString(36).substring(7);
@@ -129,7 +141,7 @@ class ApiService {
   async runPipeline(request: {
     input_path: string;
     steps: string[];
-    models: { detector: string; fixer: string };
+    models?: { detector?: string; fixer?: string };
     report_pretty?: boolean;
     client_id?: string;
   }): Promise<{ run_id: string; status: string }> {
@@ -150,6 +162,51 @@ class ApiService {
     }
 
     return await response.json();
+  }
+
+  async getPresets(): Promise<PresetListResponse> {
+    const response = await fetch(`${API_BASE_URL}/presets`);
+    if (!response.ok) {
+      throw new Error('Failed to load presets');
+    }
+    return await response.json();
+  }
+
+  async activatePreset(name: string): Promise<PresetListResponse> {
+    const response = await fetch(`${API_BASE_URL}/presets/active`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error(`Preset "${name}" not found`);
+      }
+      throw new Error('Failed to activate preset');
+    }
+    return await response.json();
+  }
+
+  async getAcronyms(): Promise<string[]> {
+    const response = await fetch(`${API_BASE_URL}/acronyms`);
+    if (!response.ok) {
+      throw new Error('Failed to load acronyms');
+    }
+    const data: AcronymListResponse = await response.json();
+    return data.items;
+  }
+
+  async updateAcronyms(items: string[]): Promise<string[]> {
+    const response = await fetch(`${API_BASE_URL}/acronyms`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items })
+    });
+    if (!response.ok) {
+      throw new Error('Failed to update acronyms');
+    }
+    const data: AcronymListResponse = await response.json();
+    return data.items;
   }
 
   async uploadFile(file: File): Promise<{

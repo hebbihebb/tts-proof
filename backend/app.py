@@ -16,7 +16,7 @@ import uuid
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
@@ -33,6 +33,8 @@ from md_proof import (print_progress, load_markdown, chunk_paragraphs, DEFAULT_A
 from prepass import (run_prepass, write_prepass_report, load_prepass_report, 
                     get_replacement_map_for_grammar, inject_prepass_into_grammar_prompt,
                     get_problem_words_for_grammar, inject_prepass_into_grammar_prompt_legacy)
+from mdp import config as mdp_config
+from mdp.tie_breaker import set_acronym_whitelist
 
 # Load the high-quality grammar prompt
 GRAMMAR_PROMPT_PATH = Path(__file__).parent.parent / "grammar_promt.txt"
@@ -51,6 +53,13 @@ ARTIFACT_PREVIEW_LIMIT = 4096  # bytes
 TEXT_EXTENSIONS = {".txt", ".md", ".markdown", ".json", ".log", ".yaml", ".yml", ".cfg"}
 
 UTC = timezone.utc
+
+# Ensure tie-breaker respects the latest acronym whitelist on startup
+try:
+    set_acronym_whitelist(mdp_config.load_acronyms())
+except Exception:
+    # Startup should not fail if the acronym file is missing or malformed; fallback to empty list
+    set_acronym_whitelist([])
 
 
 def _isoformat(dt: datetime) -> str:
@@ -410,7 +419,7 @@ class RunRequest(BaseModel):
     input_path: str
     input_name: Optional[str] = None
     steps: List[str]
-    models: Dict[str, str]  # {"detector": "model-name", "fixer": "model-name"}
+    models: Dict[str, str] = Field(default_factory=dict)  # {"detector": "model-name", "fixer": "model-name"}
     report_pretty: bool = True
     client_id: Optional[str] = None
 
@@ -480,6 +489,30 @@ class ArtifactListResponse(BaseModel):
     run_id: str
     artifacts: List[ArtifactInfo]
     total_size: int
+
+
+class PresetListResponse(BaseModel):
+    """Response payload for preset listing."""
+    presets: Dict[str, Dict[str, Any]]
+    active: str
+    active_source: str
+    resolved: Dict[str, Any]
+    env_overrides: Dict[str, str] = Field(default_factory=dict)
+
+
+class PresetActivateRequest(BaseModel):
+    """Request payload for activating a preset."""
+    name: str
+
+
+class AcronymListResponse(BaseModel):
+    """Response payload for acronym whitelist."""
+    items: List[str]
+
+
+class AcronymUpdateRequest(BaseModel):
+    """Request payload for updating acronym whitelist."""
+    items: List[str]
 
 # Global state for processing jobs
 processing_jobs: Dict[str, dict] = {}
@@ -779,6 +812,54 @@ async def save_prepass_prompt(request: dict):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save prepass prompt: {str(e)}")
 
+
+@app.get("/api/presets", response_model=PresetListResponse)
+async def get_presets():
+    """Return available model presets and the currently active selection."""
+    presets = mdp_config.load_presets()
+    effective = mdp_config.compute_effective_presets(presets)
+    preset_info = mdp_config.resolve_model_preset(presets)
+    return PresetListResponse(
+        presets=effective,
+        active=preset_info['active'],
+        active_source=preset_info.get('active_source', 'default'),
+        resolved=preset_info.get('resolved', {}),
+        env_overrides=preset_info.get('env_overrides', {}),
+    )
+
+
+@app.put("/api/presets/active", response_model=PresetListResponse)
+async def set_preset_active(request: PresetActivateRequest):
+    """Persist the active preset selection to user settings."""
+    presets = mdp_config.load_presets()
+    if request.name not in presets:
+        raise HTTPException(status_code=404, detail=f"Preset '{request.name}' not found")
+    mdp_config.set_active_preset(request.name, presets)
+    preset_info = mdp_config.resolve_model_preset(presets)
+    effective = mdp_config.compute_effective_presets(presets)
+    return PresetListResponse(
+        presets=effective,
+        active=preset_info['active'],
+        active_source=preset_info.get('active_source', 'default'),
+        resolved=preset_info.get('resolved', {}),
+        env_overrides=preset_info.get('env_overrides', {}),
+    )
+
+
+@app.get("/api/acronyms", response_model=AcronymListResponse)
+async def get_acronym_whitelist():
+    """Return the acronym whitelist used by hazard detection."""
+    items = mdp_config.load_acronyms()
+    return AcronymListResponse(items=items)
+
+
+@app.put("/api/acronyms", response_model=AcronymListResponse)
+async def update_acronym_whitelist(request: AcronymUpdateRequest):
+    """Replace the acronym whitelist and refresh in-memory cache."""
+    updated = mdp_config.save_acronyms(request.items)
+    set_acronym_whitelist(updated)
+    return AcronymListResponse(items=updated)
+
 # ============================================================================
 # NEW UNIFIED PIPELINE ENDPOINTS (Phase 11 PR-1)
 # ============================================================================
@@ -804,9 +885,6 @@ async def run_pipeline_endpoint(request: RunRequest):
     Calls mdp.__main__.run_pipeline() directly with specified steps and models.
     Streams progress via WebSocket using existing schema with new source values.
     """
-    from mdp import config as mdp_config
-    from mdp.__main__ import run_pipeline
-    
     # Generate run ID
     run_id = str(uuid.uuid4())
     client_id = request.client_id or run_id
@@ -905,23 +983,29 @@ async def run_pipeline_job(run_id: str, request: RunRequest):
             has_rejected=False
         )
         
-        # Load config and override with requested models
-        config = mdp_config.load_config(None)  # Use defaults
-        
-        # Override detector/fixer endpoints and models from request
-        if 'detect' in request.steps or 'apply' in request.steps:
-            detector_model = request.models.get('detector')
-            if detector_model:
-                if 'detector' not in config:
-                    config['detector'] = {}
-                config['detector']['model'] = detector_model
-        
-        if 'fix' in request.steps:
-            fixer_model = request.models.get('fixer')
-            if fixer_model:
-                if 'fixer' not in config:
-                    config['fixer'] = {}
-                config['fixer']['model'] = fixer_model
+        # Load config and resolve preset-driven routing
+        config = mdp_config.load_config(None)
+        preset_info = mdp_config.resolve_model_preset()
+        request_overrides: Dict[str, Dict[str, Any]] = {}
+
+        detector_override = request.models.get('detector')
+        if detector_override:
+            request_overrides['detector'] = {'model': detector_override}
+
+        fixer_override = request.models.get('fixer')
+        if fixer_override:
+            request_overrides.setdefault('fixer', {})['model'] = fixer_override
+
+        mdp_config.apply_model_preset(config, preset_info, request_overrides)
+        model_routing = config.get('model_routing', {})
+
+        acronym_list = mdp_config.load_acronyms()
+        set_acronym_whitelist(acronym_list)
+
+        # Persist resolved routing info for the run metadata
+        run_jobs[run_id]['model_preset'] = model_routing
+        run_jobs[run_id]['acronyms'] = acronym_list
+        update_run_metadata(run_id, model_preset=model_routing, acronyms=acronym_list)
         
         # Send initial progress
         await manager.send_message(client_id, {
@@ -966,7 +1050,9 @@ async def run_pipeline_job(run_id: str, request: RunRequest):
             input_text=input_text,
             steps=request.steps,
             config=config,
-            run_dir=artifacts_dir
+            run_dir=artifacts_dir,
+            model_preset=model_routing,
+            acronym_whitelist=acronym_list,
         )
         
         # Write output to artifacts directory
@@ -1021,7 +1107,8 @@ async def run_pipeline_job(run_id: str, request: RunRequest):
             "run_id": run_id,
             "output_path": str(output_path),
             "stats": combined_stats,
-            "exit_code": 0
+            "exit_code": 0,
+            "model_preset": model_routing,
         })
         
     except ConnectionError as e:

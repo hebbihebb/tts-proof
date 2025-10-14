@@ -19,7 +19,7 @@ Available steps:
 import argparse
 import sys
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Iterable
 import json
 import logging
 
@@ -36,6 +36,8 @@ def run_pipeline(
     config: Dict[str, Any],
     detector_dump_dir: Path = None,
     run_dir: Optional[Path] = None,
+    model_preset: Optional[Dict[str, Any]] = None,
+    acronym_whitelist: Optional[Iterable[str]] = None,
 ) -> tuple[str, Dict[str, Any]]:
     """
     Run the MDP pipeline with specified steps.
@@ -52,12 +54,24 @@ def run_pipeline(
     from . import markdown_adapter, prepass_basic, prepass_advanced, scrubber, grammar_assist
     
     text = input_text
-    combined_stats = {}
+    combined_stats: Dict[str, Any] = {}
     mask_table = None
     prepass_snapshot: Optional[str] = None
     grammar_snapshot: Optional[str] = None
     fixer_snapshot: Optional[str] = None
     decision_logger = DecisionLogger(run_dir / "decision-log.ndjson" if run_dir else None)
+
+    if model_preset:
+        combined_stats['model_routing'] = model_preset
+    if acronym_whitelist is not None:
+        normalized_acronyms: List[str] = []
+        for token in acronym_whitelist:
+            text = str(token).strip()
+            if not text:
+                continue
+            normalized_acronyms.append(text.upper())
+        acronym_whitelist = normalized_acronyms
+        combined_stats['acronym_whitelist'] = normalized_acronyms
     
     for step in steps:
         logger.info(f"Running step: {step}")
@@ -286,18 +300,20 @@ def run_pipeline(
     # Tie-breaker and postcheck (Phase 12)
     if grammar_snapshot is not None:
         baseline = prepass_snapshot or input_text
-        hazard_mask = detect_hazards(baseline)
+        hazard_mask = detect_hazards(baseline, acronym_whitelist)
         merged_text, tie_stats = tie_break(
             prepass_text=baseline,
             grammar_text=grammar_snapshot,
             tts_text=fixer_snapshot,
             hazard_mask=hazard_mask,
             logger=decision_logger,
+            stage_metadata=(model_preset.get('resolved') if model_preset else None),
+            acronym_whitelist=acronym_whitelist,
         )
         combined_stats['tie_breaker'] = tie_stats
         text = merged_text
 
-        postcheck_result = postcheck(text)
+        postcheck_result = postcheck(text, acronym_whitelist)
         combined_stats['postcheck'] = postcheck_result
 
         if run_dir:
@@ -369,6 +385,9 @@ Examples:
     # Load configuration
     from . import config as cfg_module
     config = cfg_module.load_config(str(args.config) if args.config else None)
+    preset_info = cfg_module.resolve_model_preset()
+    cfg_module.apply_model_preset(config, preset_info)
+    acronym_list = cfg_module.load_acronyms()
     
     # Read input file
     if not args.input_file.exists():
@@ -392,7 +411,15 @@ Examples:
     
     # Run pipeline
     try:
-        output_text, stats = run_pipeline(input_text, steps, config, args.detector_dump)
+        output_text, stats = run_pipeline(
+            input_text,
+            steps,
+            config,
+            args.detector_dump,
+            None,
+            preset_info,
+            acronym_list,
+        )
     except ConnectionError as e:
         # Exit code 2 for unreachable model server
         logger.error(f"Pipeline failed: {e}")
