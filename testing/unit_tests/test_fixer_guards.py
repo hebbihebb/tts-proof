@@ -18,43 +18,50 @@ class TestForbiddenTokens:
     
     def test_clean_text_passes(self):
         """Plain text without markdown should pass."""
-        is_valid, error = check_forbidden_tokens("This is plain text.")
+        text = "This is plain text."
+        is_valid, error = check_forbidden_tokens(text, text)
         assert is_valid
         assert error == ""
     
     def test_backtick_detected(self):
         """Backticks should be rejected."""
-        is_valid, error = check_forbidden_tokens("This has `code` in it.")
+        original = "Clean reference text."
+        is_valid, error = check_forbidden_tokens(original, "This has `code` in it.")
         assert not is_valid
         assert "backtick" in error or "`" in error
     
     def test_code_fence_detected(self):
         """Code fences should be rejected."""
-        is_valid, error = check_forbidden_tokens("```python\ncode\n```")
+        original = "Regular prose without code."
+        is_valid, error = check_forbidden_tokens(original, "```python\ncode\n```")
         assert not is_valid
         assert "```" in error
     
     def test_asterisk_detected(self):
         """Asterisks (emphasis/lists) should be rejected."""
-        is_valid, error = check_forbidden_tokens("This is *emphasized* text.")
+        original = "Plain sentence."
+        is_valid, error = check_forbidden_tokens(original, "This is *emphasized* text.")
         assert not is_valid
         assert "*" in error
     
     def test_link_syntax_detected(self):
         """Link syntax should be rejected."""
-        is_valid, error = check_forbidden_tokens("Check [this link](http://example.com)")
+        original = "Nothing fancy here."
+        is_valid, error = check_forbidden_tokens(original, "Check [this link](http://example.com)")
         assert not is_valid
         assert "[" in error or "]" in error or "(" in error
     
     def test_url_detected(self):
         """URLs should be rejected."""
-        is_valid, error = check_forbidden_tokens("Visit http://example.com")
+        original = "Simple statement."
+        is_valid, error = check_forbidden_tokens(original, "Visit http://example.com")
         assert not is_valid
         assert "http" in error.lower()
     
     def test_html_detected(self):
         """HTML tags should be rejected."""
-        is_valid, error = check_forbidden_tokens("This has <strong>HTML</strong>")
+        original = "Plain vanilla text."
+        is_valid, error = check_forbidden_tokens(original, "This has <strong>HTML</strong>")
         assert not is_valid
         assert "<" in error or ">" in error
 

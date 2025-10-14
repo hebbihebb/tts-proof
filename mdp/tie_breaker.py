@@ -281,4 +281,3 @@ def postcheck(text: str) -> dict:
         errors.append({"type": bracket_issue})
 
     return {"ok": not errors, "errors": errors}
-``

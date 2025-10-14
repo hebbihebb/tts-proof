@@ -18,7 +18,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Markdown tokens that should not be introduced
-MARKDOWN_TOKENS = set('*_[]()` ~<>')
+MARKDOWN_TOKENS = set('*_[]()`~<>')
 
 
 def validate_mask_parity(original: str, edited: str) -> Tuple[bool, str]:

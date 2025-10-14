@@ -67,7 +67,7 @@ DEFAULT_CONFIG = {
     'detector': {
         'enabled': True,
         'api_base': 'http://192.168.8.104:1234/v1',  # Network LM Studio server
-        'model': 'qwen2.5-1.5b-instruct',  # Qwen/Qwen2.5-1.5B-Instruct-GGUF Q4_K_M
+        'model': 'qwen/qwen3-4b-2507',
         'max_context_tokens': 1024,
         'max_output_chars': 2000,
         'timeout_s': 8,
@@ -86,7 +86,7 @@ DEFAULT_CONFIG = {
     },
     'apply': {
         'enabled': True,
-        'max_file_growth_ratio': 0.01,  # 1% cap on total file growth
+    'max_file_growth_ratio': 0.05,  # 5% cap on total file growth to align with fixer budget
         'enforce_backtick_parity': True,
         'enforce_bracket_parity': True,
         'enforce_fence_parity': True,
@@ -95,12 +95,12 @@ DEFAULT_CONFIG = {
     },
     'fixer': {
         'enabled': True,
-        'model': 'qwen2.5-1.5b-instruct',
+        'model': 'qwen/qwen3-4b-2507',
         'api_base': 'http://127.0.0.1:1234/v1',
         'max_context_tokens': 1024,
         'max_output_tokens': 256,
-        'timeout_s': 10,
-        'retries': 1,
+    'timeout_s': 30,
+    'retries': 2,
         'temperature': 0.2,
         'top_p': 0.9,
         'node_max_growth_ratio': 0.20,   # 20% per node
@@ -146,13 +146,13 @@ def get_blessed_models() -> Dict[str, list[str]]:
     """
     return {
         'detector': [
-            'qwen2.5-1.5b-instruct',
-            'qwen3-4b-instruct-2507',
-            'qwen3-8b'
+            'qwen/qwen3-4b-2507',
+            'qwen/qwen3-8b-instruct',
+            'qwen/qwen3-8b'
         ],
         'fixer': [
-            'qwen2.5-1.5b-instruct',
-            'qwen3-4b-instruct-2507',
-            'qwen3-8b'
+            'qwen/qwen3-4b-2507',
+            'qwen/qwen3-8b-instruct',
+            'qwen/qwen3-8b'
         ]
     }

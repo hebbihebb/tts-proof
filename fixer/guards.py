@@ -31,7 +31,7 @@ FORBIDDEN_TOKENS = [
 ]
 
 
-def check_forbidden_tokens(output: str) -> Tuple[bool, str]:
+def check_forbidden_tokens(original: str, output: str) -> Tuple[bool, str]:
     """
     Check if output contains markdown tokens.
     
@@ -42,8 +42,8 @@ def check_forbidden_tokens(output: str) -> Tuple[bool, str]:
         Tuple of (is_valid, error_message)
     """
     for token in FORBIDDEN_TOKENS:
-        if token in output:
-            return False, f"Contains forbidden token: '{token}'"
+        if token in output and token not in original:
+            return False, f"Introduces forbidden token: '{token}'"
     
     return True, ""
 
@@ -130,7 +130,7 @@ def validate_output(
     # Check 2: Forbidden tokens
     forbid_tokens = config.get('forbid_markdown_tokens', True)
     if forbid_tokens:
-        is_valid, error = check_forbidden_tokens(cleaned)
+        is_valid, error = check_forbidden_tokens(original, cleaned)
         if not is_valid:
             logger.debug(f"Rejected: {error}")
             return False, original, "forbidden_tokens"
