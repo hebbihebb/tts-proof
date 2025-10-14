@@ -19,7 +19,7 @@ Available steps:
 import argparse
 import sys
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import json
 import logging
 
@@ -27,7 +27,16 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
 
-def run_pipeline(input_text: str, steps: List[str], config: Dict[str, Any], detector_dump_dir: Path = None) -> tuple[str, Dict[str, Any]]:
+from .tie_breaker import detect_hazards, tie_break, postcheck, DecisionLogger
+
+
+def run_pipeline(
+    input_text: str,
+    steps: List[str],
+    config: Dict[str, Any],
+    detector_dump_dir: Path = None,
+    run_dir: Optional[Path] = None,
+) -> tuple[str, Dict[str, Any]]:
     """
     Run the MDP pipeline with specified steps.
     
@@ -45,6 +54,10 @@ def run_pipeline(input_text: str, steps: List[str], config: Dict[str, Any], dete
     text = input_text
     combined_stats = {}
     mask_table = None
+    prepass_snapshot: Optional[str] = None
+    grammar_snapshot: Optional[str] = None
+    fixer_snapshot: Optional[str] = None
+    decision_logger = DecisionLogger(run_dir / "decision-log.ndjson" if run_dir else None)
     
     for step in steps:
         logger.info(f"Running step: {step}")
@@ -62,6 +75,7 @@ def run_pipeline(input_text: str, steps: List[str], config: Dict[str, Any], dete
             text, stats = prepass_basic.normalize_text_nodes(text, config)
             combined_stats['prepass-basic'] = stats
             logger.info(f"  Stats: {stats}")
+            prepass_snapshot = text
         
         elif step == 'prepass-advanced':
             # Phase 2+: Advanced normalization
@@ -84,6 +98,7 @@ def run_pipeline(input_text: str, steps: List[str], config: Dict[str, Any], dete
             
             combined_stats['prepass-advanced'] = step_stats
             logger.info(f"  Stats: {step_stats}")
+            prepass_snapshot = text
         
         elif step == 'scrubber':
             # Phase 3: Content scrubbing
@@ -101,6 +116,7 @@ def run_pipeline(input_text: str, steps: List[str], config: Dict[str, Any], dete
             text, stats = grammar_assist.apply_grammar_corrections(text, config, mask_table)
             combined_stats['grammar'] = stats
             logger.info(f"  Stats: {stats}")
+            grammar_snapshot = text
         
         elif step == 'detect':
             # Phase 6: Detector
@@ -257,6 +273,7 @@ def run_pipeline(input_text: str, steps: List[str], config: Dict[str, Any], dete
                 combined_stats['fix'] = fixer_stats
                 logger.info(f"  Fixed {fixer_stats['spans_fixed']} of {fixer_stats['spans_total']} spans")
                 logger.info(f"  File growth: {fixer_stats['file_growth_ratio']:.2%}")
+                fixer_snapshot = text
                 
             except ConnectionError as e:
                 logger.error(f"  Fixer model server unreachable: {e}")
@@ -266,6 +283,29 @@ def run_pipeline(input_text: str, steps: List[str], config: Dict[str, Any], dete
         else:
             logger.warning(f"Unknown step: {step}")
     
+    # Tie-breaker and postcheck (Phase 12)
+    if grammar_snapshot is not None:
+        baseline = prepass_snapshot or input_text
+        hazard_mask = detect_hazards(baseline)
+        merged_text, tie_stats = tie_break(
+            prepass_text=baseline,
+            grammar_text=grammar_snapshot,
+            tts_text=fixer_snapshot,
+            hazard_mask=hazard_mask,
+            logger=decision_logger,
+        )
+        combined_stats['tie_breaker'] = tie_stats
+        text = merged_text
+
+        postcheck_result = postcheck(text)
+        combined_stats['postcheck'] = postcheck_result
+
+        if run_dir:
+            if not postcheck_result.get('ok'):
+                failed_path = Path(run_dir) / 'failed-chunks.json'
+                data = json.dumps(postcheck_result, ensure_ascii=False, indent=2)
+                failed_path.write_text(data, encoding='utf-8')
+
     # Unmask if we masked
     if mask_table is not None and 'mask' in steps:
         text = markdown_adapter.unmask(text, mask_table)
@@ -343,7 +383,7 @@ Examples:
     logger.info(f"Pipeline steps: {' → '.join(steps)}")
     
     # Validate steps
-    valid_steps = {'mask', 'prepass-basic', 'prepass-advanced', 'scrubber', 'grammar', 'detect', 'apply'}
+    valid_steps = {'mask', 'prepass-basic', 'prepass-advanced', 'scrubber', 'grammar', 'detect', 'apply', 'fix'}
     invalid_steps = set(steps) - valid_steps
     if invalid_steps:
         logger.error(f"Invalid steps: {invalid_steps}")
