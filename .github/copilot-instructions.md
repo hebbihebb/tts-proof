@@ -44,6 +44,13 @@ TTS-Proof is a local-first Markdown grammar correction and TTS-readability tool 
 5. **Resume**: Processing resumes from `.partial` files if present
 6. **Test markers**: Use `pytest` alone for fast feedback; use `-m "llm"` for LLM-dependent tests
 
+## Run History & Artifact Workflow
+
+- **Run app**: `python backend/app.py` (FastAPI) and `cd frontend && npm run dev` (Vite) for local development.
+- **Artifacts**: stored under `runs/<run-id>/artifacts/` and served via `GET /api/runs/{id}/artifacts/{name}` (ZIP bundles at `GET /api/runs/{id}/artifacts/archive`).
+- **Client rules**: always URL-encode both `{id}` and `{name}` (`encodeURIComponent` in the frontend helpers).
+- **Safety**: do not change Markdown parsing, artifact root, or inline prompts; keep using the existing path-safety helpers.
+
 ## Example Patterns
 
 **Masking and Processing:**

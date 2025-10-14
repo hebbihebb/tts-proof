@@ -1,6 +1,8 @@
 
 # Phase 0 — Project Hygiene & Safety Nets
 
+> **Status Note (October 14, 2025):** Phases 0-11 are complete. Use [`phase-status.md`](./phase-status.md) for a concise progress snapshot. This roadmap remains the canonical planning document for upcoming phases (12+).
+
 **Feature Description**  
 Create a safe playground to iterate, test, and roll back changes.
 

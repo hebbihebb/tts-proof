@@ -1,8 +1,8 @@
 # Phase 11 Status - Web UI Integration
 
-**Current Date**: October 13, 2025  
+**Current Date**: October 14, 2025  
 **Branch**: `dev`  
-**Status**: PR-2 Merged ✅
+**Status**: Phase Complete ✅
 
 ---
 
@@ -42,41 +42,24 @@
 **Models Added**: qwen3-4b-instruct-2507, qwen3-8b  
 **Manual Test**: ✅ All 3 test cases passing with 4B model
 
+### PR-3: Run History + Artifact Browser ✅ MERGED
+- Backend run metadata helpers with timezone-aware timestamps
+- `GET /api/runs` run history endpoint and artifact listing/download routes
+- ZIP archive streaming and safe path validation for artifact downloads
+- React `RunHistory` table with quick actions (report, diff, archive, delete)
+- React `ArtifactBrowser` modal with previews, single/all downloads, and loading states
+- Screenshot asset (`RUN_HISTORY_SCREENSHOT.png`) for documentation/UI reviews
+- Added 6 integration tests covering history, previews, downloads, archive, and traversal guard
+
+**Files Changed**: 24 files (8 new/updated, plus asset)  
+**Tests Added**: 6 integration tests (`testing/test_run_history.py`)  
+**Manual Test**: ✅ Verified artifact browsing, downloads, and deletions in local UI build
+
 ---
 
 ## 📋 Remaining Work
 
-### PR-3: Artifact Management & Downloads
-**Goal**: Access pipeline artifacts (logs, plans, reports) via UI
-
-**Tasks**:
-1. **Artifact Browser Component** (`frontend/src/components/ArtifactBrowser.tsx`)
-   - List all files in `~/.mdp/runs/{run_id}/`
-   - File type icons (JSON, TXT, MD)
-   - Preview for text files
-   - Download buttons
-   
-2. **Backend Endpoints**
-   - `GET /api/runs/{run_id}/artifacts` - List all artifacts
-   - `GET /api/runs/{run_id}/artifact/{filename}` - Download specific file (already exists as `/api/artifact`)
-   - `GET /api/runs` - List all run IDs (history)
-   
-3. **Run History Component** (`frontend/src/components/RunHistory.tsx`)
-   - Table of past runs with timestamps
-   - Quick actions (view report, download artifacts)
-   - Delete old runs
-   
-4. **Integration**
-   - Add "View Artifacts" button after completion
-   - Add "Run History" tab in UI
-   - Persistent storage of run metadata
-
-**Acceptance Criteria**:
-- [ ] Can browse all artifacts for a run
-- [ ] Can download individual files or zip all
-- [ ] Can view run history with timestamps
-- [ ] Can delete old runs to save space
-- [ ] Preview JSON/TXT files in browser
+Phase 11 scope is fully delivered. No open PRs or follow-up tasks remain for this phase.
 
 ---
 
@@ -86,9 +69,9 @@
 PR-0: Audit & Plan                    ████████████████████ 100% ✅
 PR-1: Step Toggles + Wiring           ████████████████████ 100% ✅
 PR-2: Report Display + Diff Viewer    ████████████████████ 100% ✅
-PR-3: Artifact Management             ░░░░░░░░░░░░░░░░░░░░   0%
+PR-3: Artifact Management             ████████████████████ 100% ✅
 ────────────────────────────────────────────────────────────
-Overall Phase 11 Progress:            ███████████████░░░░░  75%
+Overall Phase 11 Progress:            ████████████████████ 100%
 ```
 
 ---
@@ -107,14 +90,16 @@ Overall Phase 11 Progress:            ██████████████
 - View formatted report after completion
 - View unified diff with color-coded changes
 - Download artifacts (output, plan, report JSON)
+- Browse run history with timestamps, step/model metadata, and exit codes
+- Open the artifact browser modal with previews for text assets
+- Download individual artifacts or full ZIP archives; delete completed runs to reclaim space
 - Graceful error handling (empty plans, model errors)
 - Artifacts written to `~/.mdp/runs/{run_id}/`
-- Integration tests for web runner (10 tests total)
+- Integration tests for web runner (16 tests total)
 
 ### Not Yet Implemented ⏳
-- Artifact browser (files exist but no UI to browse all)
-- Run history (no persistence across sessions)
-- Batch artifact downloads (individual only)
+- Automated artifact retention policies (future enhancement)
+- Frontend test automation (Cypress/Playwright) remains on the backlog
 
 ### Known Issues ⚠️
 - **LM Studio JIT Loading**: Models must be pre-loaded (external issue)
@@ -131,7 +116,7 @@ Overall Phase 11 Progress:            ██████████████
 - **Network tests**: Marked, excluded by default
 
 ### Integration Tests
-- **Web runner tests**: 6 passing
+- **Web runner tests**: 16 passing (includes 6 new run history cases)
 - **Marked**: Excluded from default pytest
 - **Run with**: `pytest -m "integration"`
 
@@ -178,58 +163,22 @@ cd frontend && npm run dev
 
 ## 🎯 Next Immediate Actions
 
-### 1. Create PR-2 Branch
-```bash
-git checkout -b feat/phase11-pr2-report-display
-```
-
-### 2. Implement Report Display
-**Priority**: High  
-**Complexity**: Medium  
-**Estimated Time**: 4-6 hours
-
-**Key Components**:
-- `ReportDisplay.tsx` - Main component
-- `GET /api/runs/{run_id}/report` - Backend endpoint
-- Stats formatter utility
-- Integration into App.tsx
-
-**Design Considerations**:
-- Use Tailwind for consistent styling
-- Lucide icons for visual indicators
-- Collapsible sections for large stats
-- Mobile-responsive layout
-
-### 3. Implement Diff Viewer
-**Priority**: High  
-**Complexity**: High  
-**Estimated Time**: 6-8 hours
-
-**Key Components**:
-- `DiffViewer.tsx` - Main component
-- `GET /api/runs/{run_id}/diff` - Backend endpoint
-- Diff algorithm (consider `diff` library)
-- Syntax highlighting (consider `react-syntax-highlighter`)
-
-**Design Considerations**:
-- Side-by-side vs unified view
-- Line numbers and navigation
-- Search/filter capabilities
-- Large file handling (virtualization)
-
-### 4. Testing Strategy
-- Add integration tests for new endpoints
-- Manual testing with various file sizes
-- Edge cases (no changes, large diffs)
-- Performance testing with big files
+1. **Document the new UI** – Capture screenshots and update `readme.md`/`docs/` with quickstart guidance for run history and artifact browsing.
+2. **Plan Phase 12+** – Revisit [`phase-status.md`](./phase-status.md) and align on the next feature set (scrubber tie-breaker, packaging).
+3. **Monitor artifact retention** – Determine retention defaults or cleanup automation before the runs directory grows too large.
+4. **Expand test coverage** – Explore lightweight frontend regression tests (Playwright/Cypress) now that the UI surface is larger.
 
 ---
 
 ## 📚 Reference Documents
 
 ### Phase 11 Docs
-- `PHASE11_PR1_COMPLETE.md` - PR-1 completion summary
-- `PHASE11_PR1_DESCRIPTION.md` - PR-1 detailed description
+- `docs/phases/phase11-pr1-complete.md` - PR-1 completion summary
+- `docs/phases/phase11-pr1-description.md` - PR-1 detailed description
+- `docs/phases/phase11-pr1-postmerge.md` - Post-merge notes
+- `docs/phases/phase11-pr2-description.md` - PR-2 scope and plan
+- `docs/phases/phase11-pr2-continuation.md` - PR-2 follow-up notes
+- `docs/phases/phase11-pr2-next-steps.md` - Future work brainstorming
 - `docs/PHASE11_PR1_TEST_RESULTS.md` - Live test analysis
 
 ### Architecture Docs
@@ -244,41 +193,34 @@ git checkout -b feat/phase11-pr2-report-display
 
 ---
 
-## 💡 Tips for PR-2
+## 💡 Operational Notes
 
-### Backend Development
-- Reuse `run_pipeline_job()` artifact generation
-- Stats already in `~/.mdp/runs/{run_id}/stats.json`
-- Input/output in `input.txt` and `output.txt`
-- Use FastAPI's `FileResponse` for downloads
+### Backend
+- Run metadata lives under `RUNS_BASE_DIR` (defaults to `~/.mdp/runs`); override with `MDP_RUNS_DIR` when testing.
+- `GET /api/runs` and `GET /api/runs/{run_id}/artifacts` cache metadata as part of the response; keep helper functions (`load_run_metadata`, `update_run_metadata`) in sync if schema evolves.
+- Artifact downloads stream from disk; ensure new artifact types declare sensible media types in `download_run_artifact`.
 
-### Frontend Development
-- Match existing UI patterns (StepToggles, ModelPickers)
-- Use existing theme context for dark/light mode
-- Leverage Tailwind utility classes
-- Keep components focused and testable
+### Frontend
+- `RunHistory.tsx` handles refreshing, filtering, and deletion—keep actions idempotent to avoid stale state when wiring future features.
+- `ArtifactBrowser.tsx` expects WebSocket progress messages to include `run_id`; maintain message shape when backend evolves.
+- Download helpers live in `services/api.ts`; reuse them for any future batch actions to ensure consistent error handling.
 
 ### Testing
-- Add integration tests for new endpoints
-- Test with real pipeline output
-- Edge cases: empty stats, no changes, errors
-- Performance: large files, many changes
+- `testing/test_run_history.py` houses the integration cases for the new endpoints; add scenarios here when expanding metadata or download capabilities.
+- Fast tests remain unaffected; keep new integration tests behind the `integration` marker.
 
 ### Documentation
-- Update `PHASE11_PR2_DESCRIPTION.md` as you build
-- Document component props and usage
-- Add examples to test results doc
-- Update this status file when complete
+- Update `readme.md` and `ROADMAP.md` whenever UI entry points change.
+- Use `docs/phases/phase-status.md` as the index for newly created or migrated phase write-ups.
 
 ---
 
 ## 🎊 Celebration Points
 
-- ✅ **50% of Phase 11 complete!**
-- ✅ **Web UI now functional for full pipeline**
-- ✅ **Zero regressions in test suite**
-- ✅ **Graceful error handling implemented**
-- ✅ **6 new integration tests**
-- ✅ **2072 lines of quality code added**
+- ✅ Phase 11 wrapped—run history, artifact browser, and downloads now live
+- ✅ Comprehensive backend metadata helpers with timezone-aware timestamps
+- ✅ 16 integration tests green (including new run history coverage)
+- ✅ Frontend now showcases end-to-end pipeline artifacts with zero regressions
+- ✅ Fresh documentation pass captured in `docs/phases/*`
 
-**Next milestone**: Human-readable reports and visual diffs! 🎯
+**Next milestone**: Phase 12 planning (scrubber tie-breaker & packaging prep). 🎯

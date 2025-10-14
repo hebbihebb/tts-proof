@@ -171,6 +171,57 @@ Choose the launcher that works best for your system!
 
 ---
 
+## Run History & Artifacts (text-only overview)
+
+Every pipeline run is recorded on disk under `runs/<run-id>/` and shown in the UI:
+
+- **Run History**: a table listing recent runs with quick actions:
+  - **Artifacts** — opens a modal listing files produced by the run.
+  - **Report** — opens the HTML/Markdown report artifact (if available).
+  - **Diff** — shows before/after summary for the run.
+  - **Archive/Delete** — manage the run folder.
+
+- **Artifact Browser** (modal):
+  - Lists each artifact with name and size.
+  - **Preview** inline for text/markdown when small.
+  - **Download** single file or **Download all** (bundled by the backend).
+
+### Verifying locally (no screenshots)
+Backend:
+```bash
+# from repo root (activate venv first)
+python backend/app.py
+```
+
+Frontend:
+
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+### Helpful API calls
+
+```bash
+# List runs
+curl http://127.0.0.1:8000/api/runs
+
+# List a run's artifacts
+curl http://127.0.0.1:8000/api/runs/<RUN_ID>/artifacts
+
+# Download one artifact
+curl -OJ "http://127.0.0.1:8000/api/runs/<RUN_ID>/artifacts/<FILENAME>"
+```
+
+### Notes
+
+* Paths are served from a fixed `runs/` base directory with path-traversal protection.
+* Client URLs URL-encode both the run id and the artifact name.
+* Markdown structure is preserved throughout the pipeline; post-checks block re-introduction of TTS hazards.
+
+---
+
 ## Phase 1: AST & Masking
 
 To improve the accuracy of grammar correction and protect parts of the document that should not be altered, a new processing step has been introduced. This step uses a Markdown Abstract Syntax Tree (AST) to identify and mask protected elements like code blocks, links, and HTML.

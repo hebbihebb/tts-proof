@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added - Phase 11 (Run History & Artifacts)
+
+- Run history table with quick actions for artifacts, reports, diffs, archive, and delete
+- Artifact browser modal with inline previews, single-file downloads, and backend-bundled ZIP download
+- Safe artifact download endpoints with path traversal protection and timezone-aware metadata
+- Frontend download helpers (URL encoding, archive handling) and integration tests for the end-to-end flow
+
 ### Added - Phase 6 & 7 (Detector + Applier)
 
 **Phase 6: Detector System** (October 2025)
