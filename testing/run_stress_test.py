@@ -94,21 +94,24 @@ class StressTestRunner:
             print(f"❌ Prepass error: {e}")
             return False, {'error': str(e)}
     
-    def test_full_pipeline_cli(self):
+    def test_full_pipeline_cli(self, include_llm: bool = False):
         """Test complete pipeline using CLI-style invocation."""
         print("\n🚀 Testing Full Pipeline (CLI mode)...")
-        try:
-            # Run full pipeline with mask, prepass-basic, prepass-advanced
-            # Note: Not testing detect/apply since those require LLM connection
+        
+        if include_llm:
+            print("   Including LLM phases: detect, apply")
+            steps = ['mask', 'prepass-basic', 'prepass-advanced', 'detect', 'apply']
+        else:
+            print("   Prepass phases only (no LLM)")
             steps = ['mask', 'prepass-basic', 'prepass-advanced']
-            
-            # Use placeholder endpoint/model (won't be called for these steps)
+        
+        try:
             result, stats = run_pipeline(
                 self.test_input,
                 steps=steps,
                 config=DEFAULT_CONFIG,
                 llm_endpoint='http://localhost:1234/v1',
-                llm_model='placeholder'
+                llm_model='qwen3-8b'
             )
             
             # Save output
@@ -262,10 +265,14 @@ class StressTestRunner:
         print(f"\n📋 Summary report saved to {report_file.name}")
         return report_file
     
-    def run_all_tests(self):
+    def run_all_tests(self, include_llm: bool = False):
         """Execute all stress tests and generate reports."""
         print("="*60)
         print("TTS-PROOF V2 COMPREHENSIVE STRESS TEST")
+        if include_llm:
+            print("MODE: Full Pipeline with LLM (detect + apply)")
+        else:
+            print("MODE: Prepass Only (no LLM)")
         print("="*60)
         
         self.load_files()
@@ -284,13 +291,14 @@ class StressTestRunner:
         validator_results = self.test_validators()
         all_results['validators'] = {'success': True, 'data': validator_results}
         
-        # Test 4: Full Pipeline
-        success, data = self.test_full_pipeline_cli()
+        # Test 4: Full Pipeline (with or without LLM)
+        success, data = self.test_full_pipeline_cli(include_llm=include_llm)
         all_results['pipeline_test'] = {'success': success, 'data': data}
         
-        # Test 5: LLM Connection (optional)
-        success, data = self.test_llm_connection()
-        all_results['llm_connection'] = {'success': success, 'data': data}
+        # Test 5: LLM Connection (if LLM mode enabled)
+        if include_llm:
+            success, data = self.test_llm_connection()
+            all_results['llm_connection'] = {'success': success, 'data': data}
         
         # Compare output with reference (if pipeline succeeded)
         if all_results['pipeline_test']['success']:
@@ -320,9 +328,16 @@ class StressTestRunner:
 
 def main():
     """Main entry point."""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='TTS-Proof v2 Stress Test Runner')
+    parser.add_argument('--llm', action='store_true', 
+                        help='Include LLM phases (detect, apply) - requires LM Studio running')
+    args = parser.parse_args()
+    
     test_dir = Path(__file__).parent
     runner = StressTestRunner(test_dir)
-    exit_code = runner.run_all_tests()
+    exit_code = runner.run_all_tests(include_llm=args.llm)
     sys.exit(exit_code)
 
 
