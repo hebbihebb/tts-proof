@@ -123,6 +123,4 @@ Personal utility project — use freely, at your own risk.
 Contributions and issue reports welcome.
 [github.com/hebbihebb/tts-proof](https://github.com/hebbihebb/tts-proof)
 
-```
-
 ---
