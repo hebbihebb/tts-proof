@@ -126,6 +126,3 @@ Contributions and issue reports welcome.
 ```
 
 ---
-
-This version is under **350 lines shorter** than the original, clear on purpose, dependencies, and phases, and places the screenshot right below the title for immediate visual context.
-```
