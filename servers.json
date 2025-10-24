@@ -1,0 +1,33 @@
+{
+  "servers": [
+    {
+      "name": "LM Studio (Local)",
+      "api_base": "http://127.0.0.1:1234/v1",
+      "description": "Default LM Studio local server",
+      "default": true
+    },
+    {
+      "name": "LM Studio (Alt Port)",
+      "api_base": "http://127.0.0.1:1235/v1",
+      "description": "LM Studio on alternative port",
+      "default": false
+    },
+    {
+      "name": "KoboldCpp",
+      "api_base": "http://127.0.0.1:5001/v1",
+      "description": "Local KoboldCpp server",
+      "default": false
+    },
+    {
+      "name": "Oobabooga",
+      "api_base": "http://127.0.0.1:5000/v1",
+      "description": "Text-generation-webui server",
+      "default": false
+    }
+  ],
+  "models": {
+    "detector": "qwen/qwen3-4b-2507",
+    "grammar": "qwen/qwen3-4b-2507",
+    "fixer": "qwen/qwen3-4b-2507"
+  }
+}

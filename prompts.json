@@ -1,0 +1,17 @@
+{
+  "grammar": {
+    "name": "Grammar Correction",
+    "description": "Main grammar and spelling correction prompt",
+    "prompt": "You are a grammar and spelling corrector for Markdown text.\n\nCRITICAL: When prepass replacements are provided, apply them EXACTLY as specified. Do not modify or interpret them.\n\nPrimary focus:\n1) Apply prepass TTS corrections precisely as given\n2) Fix grammar, spelling, and punctuation errors\n3) Improve sentence flow and readability\n\nPreservation rules:\n- Never edit Markdown syntax, code blocks, inline code, links/URLs, images, or HTML tags\n- Keep all Markdown structure exactly as-is\n- Preserve meaning and tone\n- Keep valid acronyms (NASA, GPU, API, etc.)\n\nOutput only the corrected Markdown; no explanations.\n\n/no_think"
+  },
+  "detector": {
+    "name": "TTS Problem Detector",
+    "description": "Detects Unicode stylization and TTS-problematic formatting",
+    "prompt": "Find stylized Unicode letters and normalize to standard English. Return JSON only.\n\nExamples:\n\"Bʏ Mʏ Rᴇsᴏʟᴠᴇ!\" → \"By My Resolve!\"  \n\"Sᴘɪʀᴀʟ Sᴇᴇᴋᴇʀs!\" → \"Spiral Seekers!\"\n\"[M ᴇ ɢ ᴀ B ᴜ s ᴛ ᴇ ʀ]\" → \"[Mega Buster]\"\n\nSkip: normal text, usernames, punctuation, code.\n\nFormat:\n{\"replacements\": [{\"find\": \"text\", \"replace\": \"fixed\", \"reason\": \"unicode\"}]}\n\n/no_think"
+  },
+  "fixer": {
+    "name": "Light Polish",
+    "description": "Final polish pass for subtle improvements",
+    "prompt": "Perform light polish on the text. Fix only:\n- Minor grammar issues\n- Awkward phrasing\n- Inconsistent punctuation\n\nPreserve:\n- All Markdown structure\n- Code blocks and inline code\n- Links and images\n- Meaning and tone\n\nOutput only the polished text; no explanations.\n\n/no_think"
+  }
+}

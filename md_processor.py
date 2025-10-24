@@ -49,85 +49,117 @@ except ImportError:
     logging.warning("requests library not found - LLM features disabled")
 
 # ============================================================================
-# EMBEDDED PROMPTS
+# CONFIGURATION LOADING
 # ============================================================================
 
-GRAMMAR_PROMPT = """You are a grammar and spelling corrector for Markdown text.
+def load_prompts(prompts_file: Path = None) -> Dict[str, str]:
+    """Load prompts from JSON file."""
+    if prompts_file is None:
+        prompts_file = Path(__file__).parent / "prompts.json"
+    
+    if not prompts_file.exists():
+        logging.warning(f"Prompts file not found: {prompts_file}, using defaults")
+        return {
+            'grammar': "You are a grammar and spelling corrector for Markdown text.\n\nOutput only the corrected Markdown; no explanations.\n\n/no_think",
+            'detector': "Find stylized Unicode letters and normalize to standard English. Return JSON only.\n\n/no_think",
+            'fixer': "Perform light polish on the text.\n\n/no_think"
+        }
+    
+    try:
+        with open(prompts_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            return {key: val['prompt'] for key, val in data.items()}
+    except Exception as e:
+        logging.error(f"Error loading prompts: {e}")
+        return {}
 
-CRITICAL: When prepass replacements are provided, apply them EXACTLY as specified. Do not modify or interpret them.
+def load_servers(servers_file: Path = None) -> Dict[str, Any]:
+    """Load server configuration from JSON file."""
+    if servers_file is None:
+        servers_file = Path(__file__).parent / "servers.json"
+    
+    if not servers_file.exists():
+        logging.warning(f"Servers file not found: {servers_file}, using defaults")
+        return {
+            'api_base': 'http://127.0.0.1:1234/v1',
+            'models': {
+                'detector': 'qwen/qwen3-4b-2507',
+                'grammar': 'qwen/qwen3-4b-2507',
+                'fixer': 'qwen/qwen3-4b-2507'
+            }
+        }
+    
+    try:
+        with open(servers_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            # Find default server or use first one
+            default_server = next((s for s in data['servers'] if s.get('default')), data['servers'][0])
+            return {
+                'api_base': default_server['api_base'],
+                'models': data.get('models', {}),
+                'servers': data['servers']
+            }
+    except Exception as e:
+        logging.error(f"Error loading servers: {e}")
+        return {
+            'api_base': 'http://127.0.0.1:1234/v1',
+            'models': {}
+        }
 
-Primary focus:
-1) Apply prepass TTS corrections precisely as given
-2) Fix grammar, spelling, and punctuation errors
-3) Improve sentence flow and readability
-
-Preservation rules:
-- Never edit Markdown syntax, code blocks, inline code, links/URLs, images, or HTML tags
-- Keep all Markdown structure exactly as-is
-- Preserve meaning and tone
-- Keep valid acronyms (NASA, GPU, API, etc.)
-
-Output only the corrected Markdown; no explanations.
-
-/no_think"""
-
-DETECTOR_PROMPT = """Find stylized Unicode letters and normalize to standard English. Return JSON only.
-
-Examples:
-"Bʏ Mʏ Rᴇsᴏʟᴠᴇ!" → "By My Resolve!"  
-"Sᴘɪʀᴀʟ Sᴇᴇᴋᴇʀs!" → "Spiral Seekers!"
-"[M ᴇ ɢ ᴀ B ᴜ s ᴛ ᴇ ʀ]" → "[Mega Buster]"
-
-Skip: normal text, usernames, punctuation, code.
-
-Format:
-{"replacements": [{"find": "text", "replace": "fixed", "reason": "unicode"}]}
-
-/no_think"""
+# Load configuration at module level
+PROMPTS = load_prompts()
+SERVER_CONFIG = load_servers()
 
 # ============================================================================
 # DEFAULT CONFIGURATION
 # ============================================================================
 
-DEFAULT_CONFIG = {
-    'detector': {
-        'enabled': True,
-        'api_base': 'http://127.0.0.1:1234/v1',
-        'model': 'qwen3-detector',
-        'chunk_size': 600,
-        'locale': 'en',
-        'json_max_items': 16,
-    },
-    'apply': {
-        'enabled': True,
-        'validators': {
-            'mask_parity': True,
-            'backtick_parity': True,
-            'bracket_balance': True,
-            'link_sanity': True,
-            'fence_parity': True,
-            'token_guard': True,
-            'length_delta': {
-                'enabled': True,
-                'max_ratio': 0.01  # 1% growth limit
+def get_default_config() -> Dict[str, Any]:
+    """Generate default configuration using loaded server settings."""
+    api_base = SERVER_CONFIG.get('api_base', 'http://127.0.0.1:1234/v1')
+    models = SERVER_CONFIG.get('models', {})
+    
+    return {
+        'detector': {
+            'enabled': True,
+            'api_base': api_base,
+            'model': models.get('detector', 'qwen3-detector'),
+            'chunk_size': 600,
+            'locale': 'en',
+            'json_max_items': 16,
+        },
+        'apply': {
+            'enabled': True,
+            'validators': {
+                'mask_parity': True,
+                'backtick_parity': True,
+                'bracket_balance': True,
+                'link_sanity': True,
+                'fence_parity': True,
+                'token_guard': True,
+                'length_delta': {
+                    'enabled': True,
+                    'max_ratio': 0.01  # 1% growth limit
+                }
             }
+        },
+        'fixer': {
+            'enabled': False,  # Optional polish phase
+            'api_base': api_base,
+            'model': models.get('fixer', 'qwen3-grammar'),
+        },
+        'prepass_basic': {
+            'enabled': True,
+        },
+        'prepass_advanced': {
+            'enabled': True,
+        },
+        'scrubber': {
+            'enabled': False,  # Optional content removal
         }
-    },
-    'fixer': {
-        'enabled': False,  # Optional polish phase
-        'api_base': 'http://127.0.0.1:1234/v1',
-        'model': 'qwen3-grammar',
-    },
-    'prepass_basic': {
-        'enabled': True,
-    },
-    'prepass_advanced': {
-        'enabled': True,
-    },
-    'scrubber': {
-        'enabled': False,  # Optional content removal
     }
-}
+
+DEFAULT_CONFIG = get_default_config()
 
 # ============================================================================
 # PHASE 1: MASKING
@@ -509,7 +541,8 @@ def detect_problems(text: str, llm_client: LLMClient, config: Dict[str, Any]) ->
     
     # Call LLM with detector prompt
     try:
-        response = llm_client.complete(DETECTOR_PROMPT, text, temperature=0.3)
+        detector_prompt = PROMPTS.get('detector', 'Find and fix text problems. Return JSON.')
+        response = llm_client.complete(detector_prompt, text, temperature=0.3)
         stats['model_calls'] = 1
         
         # Parse JSON response
@@ -894,17 +927,22 @@ Examples:
   
   # With custom endpoint
   python md_processor.py --input input.md --output output.md --endpoint http://192.168.1.100:1234/v1
+  
+  # List available servers
+  python md_processor.py --list-servers
         """
     )
     
-    parser.add_argument('--input', required=True, type=Path, help='Input Markdown file')
-    parser.add_argument('--output', required=True, type=Path, help='Output file path')
+    parser.add_argument('--input', type=Path, help='Input Markdown file')
+    parser.add_argument('--output', type=Path, help='Output file path')
     parser.add_argument('--steps', default='mask,detect,apply', help='Comma-separated pipeline steps')
-    parser.add_argument('--endpoint', default='http://localhost:1234/v1', help='LLM API endpoint')
-    parser.add_argument('--model', default='qwen3-detector', help='LLM model name')
+    parser.add_argument('--endpoint', help='LLM API endpoint (overrides servers.json)')
+    parser.add_argument('--model', help='LLM model name (overrides servers.json)')
     parser.add_argument('--config', type=Path, help='JSON config file (overrides defaults)')
     parser.add_argument('--verbose', action='store_true', help='Enable debug logging')
     parser.add_argument('--stats-json', type=Path, help='Write statistics to JSON file')
+    parser.add_argument('--list-servers', action='store_true', help='List available servers from servers.json')
+    parser.add_argument('--list-prompts', action='store_true', help='List available prompts from prompts.json')
     
     args = parser.parse_args()
     
@@ -913,6 +951,35 @@ Examples:
         level=logging.DEBUG if args.verbose else logging.INFO,
         format='%(levelname)s: %(message)s'
     )
+    
+    # Handle list commands
+    if args.list_servers:
+        print("\n=== Available Servers (from servers.json) ===\n")
+        for server in SERVER_CONFIG.get('servers', []):
+            default_marker = " [DEFAULT]" if server.get('default') else ""
+            print(f"  {server['name']}{default_marker}")
+            print(f"    URL: {server['api_base']}")
+            print(f"    Description: {server.get('description', 'N/A')}")
+            print()
+        print("=== Configured Models ===\n")
+        models = SERVER_CONFIG.get('models', {})
+        for phase, model in models.items():
+            print(f"  {phase}: {model}")
+        print()
+        return 0
+    
+    if args.list_prompts:
+        print("\n=== Available Prompts (from prompts.json) ===\n")
+        for key, prompt_text in PROMPTS.items():
+            print(f"  {key}:")
+            print(f"    Length: {len(prompt_text)} characters")
+            print(f"    Preview: {prompt_text[:100]}...")
+            print()
+        return 0
+    
+    # Validate required arguments for processing
+    if not args.input or not args.output:
+        parser.error("--input and --output are required for processing")
     
     # Load input
     if not args.input.exists():
@@ -938,9 +1005,13 @@ Examples:
     steps = [s.strip() for s in args.steps.split(',')]
     logging.info(f"Pipeline: {' → '.join(steps)}")
     
+    # Determine endpoint and model (CLI args override config)
+    endpoint = args.endpoint or config.get('detector', {}).get('api_base')
+    model = args.model or config.get('detector', {}).get('model')
+    
     # Run pipeline
     try:
-        output_text, stats = run_pipeline(text, steps, config, args.endpoint, args.model)
+        output_text, stats = run_pipeline(text, steps, config, endpoint, model)
     except Exception as e:
         logging.error(f"Pipeline failed: {e}")
         if args.verbose:
