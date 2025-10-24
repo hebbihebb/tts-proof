@@ -1,12 +1,12 @@
-# TTS-Proof v2# TTS-Proof v2# TTS-Proof
+# TTS-Proof v2# TTS-Proof v2# TTS-Proof v2# TTS-Proof
 
 
 
-**Local-first Markdown grammar correction and TTS-readability enhancement tool**
+**Local-first TTS readability enhancement for Markdown files**
 
 
 
-A streamlined, single-file Python application that detects and fixes Unicode stylization, spaced letters, and other TTS-problematic text patterns in Markdown documents. Uses local LLM inference (LM Studio, KoboldCpp, etc.) for intelligent problem detection.**Local-first Markdown grammar correction and TTS-readability enhancement tool****Local-first Markdown grammar correction and TTS-readability tool for fiction**
+Detects and fixes Unicode stylization, spaced letters, and hyphenated words that break text-to-speech engines. Uses local LLM inference for intelligent problem detection.**Local-first Markdown grammar correction and TTS-readability enhancement tool**
 
 
 
@@ -14,171 +14,352 @@ A streamlined, single-file Python application that detects and fixes Unicode sty
 
 
 
-## ✨ FeaturesA streamlined, single-file Python application that detects and fixes Unicode stylization, spaced letters, and other TTS-problematic text patterns in Markdown documents. Uses local LLM inference (LM Studio, KoboldCpp, etc.) for intelligent problem detection.Process Markdown files (often from EPUBs) using local LLMs and a modular Python pipeline. Features crash-safe chunked processing, real-time WebSocket updates, and TTS-specific problem detection.
+## What It DoesA streamlined, single-file Python application that detects and fixes Unicode stylization, spaced letters, and other TTS-problematic text patterns in Markdown documents. Uses local LLM inference (LM Studio, KoboldCpp, etc.) for intelligent problem detection.**Local-first Markdown grammar correction and TTS-readability enhancement tool****Local-first Markdown grammar correction and TTS-readability tool for fiction**
 
 
 
-- **🎯 TTS Problem Detection** - Finds Unicode stylization (ʙʏ ᴍʏ ʀᴇsᴏʟᴠᴇ → By My Resolve), spaced letters (F l a s h → Flash), hyphenated words (U-N-I-T-E-D → UNITED)
-
-- **🔒 Structure-Preserving** - 7 validators ensure code blocks, links, and Markdown syntax remain intact
-
-- **🤖 LLM-Powered** - Uses local LLMs for intelligent detection (no cloud APIs)![TTS-Proof GUI](screenshot.png)---
-
-- **⚙️ Configurable** - JSON-based prompts and server configuration
-
-- **🖥️ Dual Interface** - CLI for automation, Tkinter GUI for interactive use
-
-- **📦 Zero Dependencies** - Single Python file + optional `requests` library
-
-## ✨ Features## Quick Start
-
-## 🚀 Quick Start
+Transforms TTS-problematic text into clean, readable content:
 
 
 
-### Prerequisites
+```markdown![TTS-Proof GUI](screenshot.png)
 
-- **🎯 TTS Problem Detection** - Finds Unicode stylization (ʙʏ ᴍʏ ʀᴇsᴏʟᴠᴇ → By My Resolve), spaced letters (F l a s h → Flash), hyphenated words (U-N-I-T-E-D → UNITED)**Requirements**: Python 3.10+, Node.js 16+, [LM Studio](https://lmstudio.ai/) with local server
+# Before
 
-- Python 3.10+
+The word F l a s h appeared on screen.
 
-- [LM Studio](https://lmstudio.ai/) (or compatible OpenAI API server)- **🔒 Structure-Preserving** - 7 validators ensure code blocks, links, and Markdown syntax remain intact
+Someone said: "U-N-I-T-E-D we stand!"
+
+Another example: Bʏ Mʏ Rᴇsᴏʟᴠᴇ!## ✨ FeaturesA streamlined, single-file Python application that detects and fixes Unicode stylization, spaced letters, and other TTS-problematic text patterns in Markdown documents. Uses local LLM inference (LM Studio, KoboldCpp, etc.) for intelligent problem detection.Process Markdown files (often from EPUBs) using local LLMs and a modular Python pipeline. Features crash-safe chunked processing, real-time WebSocket updates, and TTS-specific problem detection.
+
+
+
+# After
+
+The word Flash appeared on screen.
+
+Someone said: "UNITED we stand!"- **🎯 TTS Problem Detection** - Finds Unicode stylization (ʙʏ ᴍʏ ʀᴇsᴏʟᴠᴇ → By My Resolve), spaced letters (F l a s h → Flash), hyphenated words (U-N-I-T-E-D → UNITED)
+
+Another example: By My Resolve!
+
+```- **🔒 Structure-Preserving** - 7 validators ensure code blocks, links, and Markdown syntax remain intact
+
+
+
+**Use Cases:**- **🤖 LLM-Powered** - Uses local LLMs for intelligent detection (no cloud APIs)![TTS-Proof GUI](screenshot.png)---
+
+- 📚 Ebook cleanup (EPUB → Markdown → TTS)
+
+- 🌐 Web scraping content normalization- **⚙️ Configurable** - JSON-based prompts and server configuration
+
+- 🤖 AI-generated text polishing
+
+- 🔄 Translation post-processing- **🖥️ Dual Interface** - CLI for automation, Tkinter GUI for interactive use
+
+
+
+## Quick Start- **📦 Zero Dependencies** - Single Python file + optional `requests` library
+
+
+
+### Prerequisites## ✨ Features## Quick Start
+
+
+
+- Python 3.10+## 🚀 Quick Start
+
+- [LM Studio](https://lmstudio.ai/) (or compatible OpenAI API server)
 
 - Optional: `pip install requests` (for LLM features)
 
-- **🤖 LLM-Powered** - Uses local LLMs for intelligent detection (no cloud APIs)**Launch**:
 
-### Installation
 
-- **⚙️ Configurable** - JSON-based prompts and server configuration```bash
+### Installation### Prerequisites
 
-```bash
 
-# Clone the repository- **🖥️ Dual Interface** - CLI for automation, Tkinter GUI for interactive usepython launch.py  # Opens browser to http://localhost:5174
+
+```bash- **🎯 TTS Problem Detection** - Finds Unicode stylization (ʙʏ ᴍʏ ʀᴇsᴏʟᴠᴇ → By My Resolve), spaced letters (F l a s h → Flash), hyphenated words (U-N-I-T-E-D → UNITED)**Requirements**: Python 3.10+, Node.js 16+, [LM Studio](https://lmstudio.ai/) with local server
 
 git clone https://github.com/hebbihebb/tts-proof.git
 
-cd tts-proof- **📦 Zero Dependencies** - Single Python file + optional `requests` library```
+cd tts-proof- Python 3.10+
+
+pip install requests  # Optional, for LLM integration
+
+```- [LM Studio](https://lmstudio.ai/) (or compatible OpenAI API server)- **🔒 Structure-Preserving** - 7 validators ensure code blocks, links, and Markdown syntax remain intact
 
 
 
-# Optional: Install requests for LLM integration
-
-pip install requests
-
-```## 🚀 Quick Start**Use**: Upload Markdown → Configure preset → Run pipeline → Download results
+### Usage- Optional: `pip install requests` (for LLM features)
 
 
 
-### Usage
-
-
-
-**GUI (Recommended)**### Prerequisites---
+**GUI (Recommended)**- **🤖 LLM-Powered** - Uses local LLMs for intelligent detection (no cloud APIs)**Launch**:
 
 ```bash
 
-python gui.py
+python gui.py### Installation
 
 ```
 
-- Python 3.10+## What It Does
+- **⚙️ Configurable** - JSON-based prompts and server configuration```bash
 
 **CLI**
 
-```bash- [LM Studio](https://lmstudio.ai/) (or compatible OpenAI API server)
+```bash```bash
 
-# Full pipeline (detect + apply corrections)
+# Full pipeline (LLM-based detection + fixes)
 
-python md_processor.py --input input.md --output output.md --steps mask,detect,apply- Optional: `pip install requests` (for LLM features)Cleans up documents with grammar/spelling errors, poor OCR/translation formatting, TTS-problematic patterns (spaced letters, stylized Unicode), and removes author notes/navigation/promos.
+python md_processor.py --input input.md --output output.md# Clone the repository- **🖥️ Dual Interface** - CLI for automation, Tkinter GUI for interactive usepython launch.py  # Opens browser to http://localhost:5174
 
 
 
-# Prepass only (basic cleanup, no LLM)
+# Basic cleanup only (no LLM needed)git clone https://github.com/hebbihebb/tts-proof.git
 
-python md_processor.py --input input.md --output clean.md --steps mask,prepass-basic,prepass-advanced
+python md_processor.py --input input.md --output output.md --steps mask,prepass-basic,prepass-advanced
 
-### Installation**Use cases**: Ebook cleanup, web scraping, AI text polishing, translation post-processing  
+cd tts-proof- **📦 Zero Dependencies** - Single Python file + optional `requests` library```
 
-# List available servers and models
+# List configuration
 
-python md_processor.py --list-servers**Privacy**: Everything runs locally—no data leaves your machine
+python md_processor.py --list-servers
 
 python md_processor.py --list-prompts
 
-``````bash
+```# Optional: Install requests for LLM integration
 
 
 
-## 📋 Pipeline Steps# Clone the repository---
+## How It Workspip install requests
 
 
 
-The processing pipeline consists of 8 configurable phases:git clone https://github.com/hebbihebb/tts-proof.git
+**8-Phase Pipeline:**```## 🚀 Quick Start**Use**: Upload Markdown → Configure preset → Run pipeline → Download results
 
 
 
-| Step | Name | Description | Status | Requires LLM |cd tts-proof## Features
+| Phase | Description | LLM Required |
 
-|------|------|-------------|--------|--------------|
+|-------|-------------|--------------|
 
-| 1 | `mask` | Protect code blocks, links, HTML | ✅ Complete | No |
+| 1. Mask | Protect code blocks, links, HTML | No |### Usage
 
-| 2 | `prepass-basic` | Unicode normalization, spacing fixes | ✅ Complete | No |
+| 2. Prepass Basic | Unicode normalization (NFKC), spacing | No |
 
-| 3 | `prepass-advanced` | Punctuation, ellipsis, casing | ✅ Complete | No |# Optional: Install requests for LLM integration- **React + TypeScript Web UI** with real-time WebSocket progress
+| 3. Prepass Advanced | Punctuation, ellipsis, casing | No |
 
-| 4 | `scrubber` | Remove author notes, navigation | ⚠️ Stub (future) | No |
+| 4. Scrubber | Remove boilerplate *(stub)* | No |
 
-| 5 | `grammar` | Grammar correction (legacy) | ❌ Deprecated | Yes |pip install requests- **FastAPI backend** orchestrating modular Python pipeline
+| 5. Grammar | Grammar correction *(deprecated)* | Yes |**GUI (Recommended)**### Prerequisites---
 
-| 6 | `detect` | TTS problem detection → JSON plan | ✅ Complete | Yes |
+| 6. Detect | TTS problem detection → JSON plan | Yes |
 
-| 7 | `apply` | Execute plan with validation | ✅ Complete | No |```- **8-phase processing**: Masking → Normalization → Scrubbing → Grammar → Detection → Application → Fixing
+| 7. Apply | Execute plan with 7 validators | No |```bash
 
-| 8 | `fix` | Light polish after corrections | ⚠️ Stub (future) | Yes |
+| 8. Fix | Final polish *(stub)* | Yes |
 
-- **Crash-safe chunking** with `.partial` file checkpointing
+python gui.py
 
-**Status Legend:**
-
-- ✅ **Complete** - Fully implemented and tested### Usage- **Run history & artifacts** browser with diff viewer
-
-- ⚠️ **Stub** - Placeholder for future implementation (currently no-op)
-
-- ❌ **Deprecated** - Legacy phase not used in v2- **Configurable presets** for model/server selection
-
-
-
-**Common Pipelines:****GUI (Recommended)**- **Dark/light theme** toggle
-
-- Basic cleanup: `mask,prepass-basic,prepass-advanced`
-
-- TTS fixes: `mask,detect,apply````bash
-
-- Full pipeline: `mask,prepass-basic,prepass-advanced,detect,apply`
-
-python gui.py---
-
-> **Note**: Scrubber and fixer are optional future phases. The core pipeline (mask → prepass → detect → apply) is fully functional for TTS readability enhancement.
+**Core Pipeline:** `mask → prepass → detect → apply` (fully functional)
 
 ```
 
-## 🎨 GUI Overview
+**7 Structural Validators:**
+
+1. Mask parity (sentinel count)- Python 3.10+## What It Does
+
+2. Backtick parity (code blocks)
+
+3. Bracket balance `[](){}` **CLI**
+
+4. Link sanity `](` pairs
+
+5. Fence parity ` ``` ` count```bash- [LM Studio](https://lmstudio.ai/) (or compatible OpenAI API server)
+
+6. Token guard (no new Markdown tokens)
+
+7. Length delta (<1% growth)# Full pipeline (detect + apply corrections)
+
+
+
+> If any validator fails, all edits are rejected and original text returned.python md_processor.py --input input.md --output output.md --steps mask,detect,apply- Optional: `pip install requests` (for LLM features)Cleans up documents with grammar/spelling errors, poor OCR/translation formatting, TTS-problematic patterns (spaced letters, stylized Unicode), and removes author notes/navigation/promos.
+
+
+
+## Configuration
+
+
+
+**Edit without touching code:**# Prepass only (basic cleanup, no LLM)
+
+
+
+`servers.json` - LLM server configuration:python md_processor.py --input input.md --output clean.md --steps mask,prepass-basic,prepass-advanced
+
+```json
+
+{### Installation**Use cases**: Ebook cleanup, web scraping, AI text polishing, translation post-processing  
+
+  "servers": [
+
+    {# List available servers and models
+
+      "name": "LM Studio (Local)",
+
+      "api_base": "http://127.0.0.1:1234/v1",python md_processor.py --list-servers**Privacy**: Everything runs locally—no data leaves your machine
+
+      "default": true
+
+    }python md_processor.py --list-prompts
+
+  ],
+
+  "models": {``````bash
+
+    "detector": "qwen/qwen3-4b-2507"
+
+  }
+
+}
+
+```## 📋 Pipeline Steps# Clone the repository---
+
+
+
+`prompts.json` - LLM prompts for each phase:
+
+```json
+
+{The processing pipeline consists of 8 configurable phases:git clone https://github.com/hebbihebb/tts-proof.git
+
+  "detector": {
+
+    "name": "TTS Problem Detector",
+
+    "prompt": "Find and normalize TTS-problematic text..."
+
+  }| Step | Name | Description | Status | Requires LLM |cd tts-proof## Features
+
+}
+
+```|------|------|-------------|--------|--------------|
+
+
+
+## Features| 1 | `mask` | Protect code blocks, links, HTML | ✅ Complete | No |
+
+
+
+✅ **Complete:**| 2 | `prepass-basic` | Unicode normalization, spacing fixes | ✅ Complete | No |
+
+- TTS problem detection (Unicode, spacing, hyphenation)
+
+- Structure-preserving edits (7 validators)| 3 | `prepass-advanced` | Punctuation, ellipsis, casing | ✅ Complete | No |# Optional: Install requests for LLM integration- **React + TypeScript Web UI** with real-time WebSocket progress
+
+- CLI + Tkinter GUI
+
+- JSON configuration (prompts, servers)| 4 | `scrubber` | Remove author notes, navigation | ⚠️ Stub (future) | No |
+
+- Local LLM integration (OpenAI-compatible)
+
+| 5 | `grammar` | Grammar correction (legacy) | ❌ Deprecated | Yes |pip install requests- **FastAPI backend** orchestrating modular Python pipeline
+
+⚠️ **Future/Stub:**
+
+- **Scrubber** - Remove ebook boilerplate (author notes, navigation, promos)| 6 | `detect` | TTS problem detection → JSON plan | ✅ Complete | Yes |
+
+- **Fixer** - Final LLM polish pass
+
+| 7 | `apply` | Execute plan with validation | ✅ Complete | No |```- **8-phase processing**: Masking → Normalization → Scrubbing → Grammar → Detection → Application → Fixing
 
 ## Architecture
 
-The Tkinter GUI provides a clean, simple interface:
+| 8 | `fix` | Light polish after corrections | ⚠️ Stub (future) | Yes |
+
+**v2 vs v1:**
+
+- **Crash-safe chunking** with `.partial` file checkpointing
+
+| Metric | v1 | v2 | Change |
+
+|--------|----|----|--------|**Status Legend:**
+
+| Files | 50+ | 4 core | -92% |
+
+| Lines | ~12,500 | ~1,400 | -89% |- ✅ **Complete** - Fully implemented and tested### Usage- **Run history & artifacts** browser with diff viewer
+
+| Dependencies | React, FastAPI, Node.js | Python + requests | -95% |
+
+| Deployment | 3 processes | 1 process | -67% |- ⚠️ **Stub** - Placeholder for future implementation (currently no-op)
+
+
+
+**Core Files:**- ❌ **Deprecated** - Legacy phase not used in v2- **Configurable presets** for model/server selection
+
+- `md_processor.py` (~1000 lines) - Single-file processor
+
+- `gui.py` (~400 lines) - Tkinter GUI
+
+- `prompts.json` - Editable prompts
+
+- `servers.json` - Server configuration**Common Pipelines:****GUI (Recommended)**- **Dark/light theme** toggle
+
+
+
+## Testing- Basic cleanup: `mask,prepass-basic,prepass-advanced`
+
+
+
+```bash- TTS fixes: `mask,detect,apply````bash
+
+pytest                # Fast tests (no LLM)
+
+pytest -m ""          # All tests including LLM- Full pipeline: `mask,prepass-basic,prepass-advanced,detect,apply`
+
+pytest -m llm         # LLM integration only
+
+```python gui.py---
+
+
+
+Test data: `testing/test_data/*.md`> **Note**: Scrubber and fixer are optional future phases. The core pipeline (mask → prepass → detect → apply) is fully functional for TTS readability enhancement.
+
+
+
+## Contributing```
+
+
+
+Personal utility, but PRs welcome:## 🎨 GUI Overview
+
+
+
+1. Fork repo## Architecture
+
+2. Create feature branch from `dev`
+
+3. Test with `pytest`The Tkinter GUI provides a clean, simple interface:
+
+4. Submit PR to `dev`
 
 **CLI**
 
+## License
+
 ### Layout
+
+Personal utility - use at your own risk.
 
 ```bash```
 
+---
+
 1. **Files Section**
 
-   - Input/output file selection with Browse buttons# Full pipeline (detect + apply corrections)React Frontend (5174) ←─ WebSocket ─→ FastAPI (8000) → mdp/ → LM Studio (1234)
+**Version:** 2.0  
+
+**Repository:** [github.com/hebbihebb/tts-proof](https://github.com/hebbihebb/tts-proof)   - Input/output file selection with Browse buttons# Full pipeline (detect + apply corrections)React Frontend (5174) ←─ WebSocket ─→ FastAPI (8000) → mdp/ → LM Studio (1234)
+
 
    - Auto-suggests output filename
 
