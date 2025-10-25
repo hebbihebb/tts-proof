@@ -1,0 +1,232 @@
+{
+  "test_info": {
+    "test_file": "C:\\Users\\hebbi\\Documents\\VSCode\\tts-proof\\tts-proof\\testing\\test_data\\tts_stress_test.md",
+    "reference_file": "C:\\Users\\hebbi\\Documents\\VSCode\\tts-proof\\tts-proof\\testing\\test_data\\tts_stress_test_reference.md",
+    "total_iterations": 5,
+    "timestamp": "2025-10-24T21:52:46.343458"
+  },
+  "results": [
+    {
+      "iteration": 1,
+      "prompt_name": "Baseline (Unicode Only)",
+      "timestamp": "2025-10-24T21:48:15.230637",
+      "similarity": 51.85185185185185,
+      "output_length": 5298,
+      "suggestions_valid": 0,
+      "suggestions_rejected": 0,
+      "plan_size": 0,
+      "replacements_applied": 0,
+      "replacements_rejected": 0,
+      "validation_passed": false,
+      "stats": {
+        "mask": {
+          "masks_created": 1
+        },
+        "prepass-basic": {
+          "unicode_normalized": 2,
+          "space_before_punct": 1,
+          "space_after_punct": 1
+        },
+        "prepass-advanced": {
+          "ellipsis_normalized": 1,
+          "punct_collapsed": 1
+        },
+        "detect": {
+          "model_calls": 1,
+          "suggestions_valid": 0,
+          "suggestions_rejected": 0,
+          "plan_size": 0
+        },
+        "apply": {
+          "skipped": true
+        }
+      }
+    },
+    {
+      "iteration": 2,
+      "prompt_name": "Comprehensive TTS v1",
+      "timestamp": "2025-10-24T21:48:45.937663",
+      "similarity": 52.883367328017805,
+      "output_length": 5284,
+      "suggestions_valid": 18,
+      "suggestions_rejected": 1,
+      "plan_size": 18,
+      "replacements_applied": 18,
+      "replacements_rejected": 0,
+      "validation_passed": true,
+      "stats": {
+        "mask": {
+          "masks_created": 1
+        },
+        "prepass-basic": {
+          "unicode_normalized": 2,
+          "space_before_punct": 1,
+          "space_after_punct": 1
+        },
+        "prepass-advanced": {
+          "ellipsis_normalized": 1,
+          "punct_collapsed": 1
+        },
+        "detect": {
+          "model_calls": 1,
+          "suggestions_valid": 18,
+          "suggestions_rejected": 1,
+          "plan_size": 18
+        },
+        "apply": {
+          "replacements_applied": 18,
+          "replacements_rejected": 0,
+          "validation_passed": true
+        }
+      }
+    },
+    {
+      "iteration": 3,
+      "prompt_name": "Comprehensive TTS v2",
+      "timestamp": "2025-10-24T21:50:06.597075",
+      "similarity": 53.365473762284445,
+      "output_length": 5284,
+      "suggestions_valid": 52,
+      "suggestions_rejected": 0,
+      "plan_size": 52,
+      "replacements_applied": 49,
+      "replacements_rejected": 3,
+      "validation_passed": true,
+      "stats": {
+        "mask": {
+          "masks_created": 1
+        },
+        "prepass-basic": {
+          "unicode_normalized": 2,
+          "space_before_punct": 1,
+          "space_after_punct": 1
+        },
+        "prepass-advanced": {
+          "ellipsis_normalized": 1,
+          "punct_collapsed": 1
+        },
+        "detect": {
+          "model_calls": 1,
+          "suggestions_valid": 52,
+          "suggestions_rejected": 0,
+          "plan_size": 52
+        },
+        "apply": {
+          "replacements_applied": 49,
+          "replacements_rejected": 3,
+          "validation_passed": true
+        }
+      }
+    },
+    {
+      "iteration": 4,
+      "prompt_name": "Comprehensive TTS v3",
+      "timestamp": "2025-10-24T21:51:25.839999",
+      "similarity": 51.85185185185185,
+      "output_length": 5298,
+      "suggestions_valid": 0,
+      "suggestions_rejected": 0,
+      "plan_size": 0,
+      "replacements_applied": 0,
+      "replacements_rejected": 0,
+      "validation_passed": false,
+      "stats": {
+        "mask": {
+          "masks_created": 1
+        },
+        "prepass-basic": {
+          "unicode_normalized": 2,
+          "space_before_punct": 1,
+          "space_after_punct": 1
+        },
+        "prepass-advanced": {
+          "ellipsis_normalized": 1,
+          "punct_collapsed": 1
+        },
+        "detect": {
+          "model_calls": 1,
+          "suggestions_valid": 0,
+          "suggestions_rejected": 0,
+          "plan_size": 0
+        },
+        "apply": {
+          "skipped": true
+        }
+      }
+    },
+    {
+      "iteration": 5,
+      "prompt_name": "Ultra-Aggressive v1",
+      "timestamp": "2025-10-24T21:52:46.341846",
+      "similarity": 51.85185185185185,
+      "output_length": 5298,
+      "suggestions_valid": 0,
+      "suggestions_rejected": 0,
+      "plan_size": 0,
+      "replacements_applied": 0,
+      "replacements_rejected": 0,
+      "validation_passed": false,
+      "stats": {
+        "mask": {
+          "masks_created": 1
+        },
+        "prepass-basic": {
+          "unicode_normalized": 2,
+          "space_before_punct": 1,
+          "space_after_punct": 1
+        },
+        "prepass-advanced": {
+          "ellipsis_normalized": 1,
+          "punct_collapsed": 1
+        },
+        "detect": {
+          "model_calls": 1,
+          "suggestions_valid": 0,
+          "suggestions_rejected": 0,
+          "plan_size": 0
+        },
+        "apply": {
+          "skipped": true
+        }
+      }
+    }
+  ],
+  "best_result": {
+    "iteration": 3,
+    "prompt_name": "Comprehensive TTS v2",
+    "timestamp": "2025-10-24T21:50:06.597075",
+    "similarity": 53.365473762284445,
+    "output_length": 5284,
+    "suggestions_valid": 52,
+    "suggestions_rejected": 0,
+    "plan_size": 52,
+    "replacements_applied": 49,
+    "replacements_rejected": 3,
+    "validation_passed": true,
+    "stats": {
+      "mask": {
+        "masks_created": 1
+      },
+      "prepass-basic": {
+        "unicode_normalized": 2,
+        "space_before_punct": 1,
+        "space_after_punct": 1
+      },
+      "prepass-advanced": {
+        "ellipsis_normalized": 1,
+        "punct_collapsed": 1
+      },
+      "detect": {
+        "model_calls": 1,
+        "suggestions_valid": 52,
+        "suggestions_rejected": 0,
+        "plan_size": 52
+      },
+      "apply": {
+        "replacements_applied": 49,
+        "replacements_rejected": 3,
+        "validation_passed": true
+      }
+    }
+  }
+}

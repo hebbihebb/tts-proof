@@ -164,7 +164,8 @@ class TTSProofGUI:
             ('prepass-advanced', 'Prepass: Advanced', True),
             ('scrubber', 'Scrubber (remove notes)', False),
             ('detect', 'Detect TTS problems', True),
-            ('apply', 'Apply corrections', True),
+            ('grammar', 'Grammar correction (LLM)', True),
+            ('apply', 'Apply corrections', False),
             ('fix', 'Polish (optional)', False),
         ]
         
@@ -279,7 +280,7 @@ class TTSProofGUI:
     
     def _get_selected_steps(self) -> List[str]:
         """Get list of selected pipeline steps in order."""
-        step_order = ['mask', 'prepass-basic', 'prepass-advanced', 'scrubber', 'detect', 'apply', 'fix']
+        step_order = ['mask', 'prepass-basic', 'prepass-advanced', 'scrubber', 'detect', 'grammar', 'apply', 'fix']
         return [step for step in step_order if self.step_vars[step].get()]
     
     def _log(self, message: str):
