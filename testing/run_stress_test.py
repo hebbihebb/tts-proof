@@ -99,8 +99,8 @@ class StressTestRunner:
         print("\n🚀 Testing Full Pipeline (CLI mode)...")
         
         if include_llm:
-            print("   Including LLM phases: detect, apply")
-            steps = ['mask', 'prepass-basic', 'prepass-advanced', 'detect', 'apply']
+            print("   Including LLM phases: detect, grammar")
+            steps = ['mask', 'prepass-basic', 'prepass-advanced', 'detect', 'grammar']
         else:
             print("   Prepass phases only (no LLM)")
             steps = ['mask', 'prepass-basic', 'prepass-advanced']
@@ -111,7 +111,7 @@ class StressTestRunner:
                 steps=steps,
                 config=DEFAULT_CONFIG,
                 llm_endpoint='http://localhost:1234/v1',
-                llm_model='qwen3-8b'
+                llm_model='qwen/qwen3-4b-2507'
             )
             
             # Save output

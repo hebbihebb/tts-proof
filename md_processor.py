@@ -20,10 +20,10 @@ Features:
 Usage:
     # Library usage
     import md_processor
-    result, stats = md_processor.run_pipeline(text, steps=['mask', 'detect', 'apply'])
+    result, stats = md_processor.run_pipeline(text, steps=['mask', 'detect', 'grammar'])
     
     # CLI usage
-    python md_processor.py --input input.md --output output.md --steps mask,detect,apply
+    python md_processor.py --input input.md --output output.md --steps mask,detect,grammar
 
 Author: TTS-Proof v2
 License: Personal utility
@@ -447,7 +447,7 @@ class LLMClient:
         self.timeout = timeout
     
     def complete(self, system_prompt: str, user_text: str, temperature: float = 0.0, 
-                 max_tokens: int = 4096) -> str:
+                 max_tokens: int = 4096, repetition_penalty: float = 1.0, stop: list = None) -> str:
         """
         Call LLM for text completion.
         
@@ -456,20 +456,28 @@ class LLMClient:
             user_text: User input text
             temperature: Sampling temperature
             max_tokens: Maximum tokens to generate
+            repetition_penalty: Penalty for repeating tokens (1.0 = no penalty, >1.0 = penalize)
+            stop: List of stop sequences
         
         Returns:
             Generated text
         """
         url = f"{self.endpoint}/chat/completions"
+        
+        # Default stop sequences
+        if stop is None:
+            stop = ["</RESULT>"]
+        
         payload = {
             "model": self.model,
             "temperature": temperature,
             "max_tokens": max_tokens,
+            "repetition_penalty": repetition_penalty,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"{SENTINEL_START}\n{user_text}\n{SENTINEL_END}"}
             ],
-            "stop": ["</RESULT>"],
+            "stop": stop,
             "enable_thinking": False
         }
         
@@ -524,6 +532,7 @@ class ReplacementItem:
 def detect_problems(text: str, llm_client: LLMClient, config: Dict[str, Any]) -> Tuple[List[ReplacementItem], Dict[str, int]]:
     """
     Phase 6: Detect TTS problems and generate replacement plan.
+    Processes text in chunks to avoid overwhelming the LLM.
     
     Args:
         text: Input text (should be masked)
@@ -536,61 +545,122 @@ def detect_problems(text: str, llm_client: LLMClient, config: Dict[str, Any]) ->
     stats = {
         'model_calls': 0,
         'suggestions_valid': 0,
-        'suggestions_rejected': 0
+        'suggestions_rejected': 0,
+        'chunks_processed': 0
     }
     
-    # Call LLM with detector prompt
-    try:
-        detector_prompt = PROMPTS.get('detector', 'Find and fix text problems. Return JSON.')
-        response = llm_client.complete(detector_prompt, text, temperature=0.3)
-        stats['model_calls'] = 1
-        
-        # Parse JSON response
-        try:
-            data = json.loads(response)
-            replacements = data.get('replacements', [])
-            
-            # Validate each replacement
-            valid_items = []
-            for item in replacements:
-                find_text = item.get('find', '')
-                replace_text = item.get('replace', '')
-                reason = item.get('reason', 'unknown')
-                
-                # Basic validation
-                if not find_text or not replace_text:
-                    stats['suggestions_rejected'] += 1
-                    continue
-                
-                # Check if find_text exists in original
-                if find_text not in text:
-                    stats['suggestions_rejected'] += 1
-                    logging.debug(f"Rejected (not found): {find_text}")
-                    continue
-                
-                valid_items.append(ReplacementItem(
-                    find=find_text,
-                    replace=replace_text,
-                    reason=reason
-                ))
-                stats['suggestions_valid'] += 1
-            
-            logging.info(f"Detector: {len(valid_items)} valid suggestions")
-            return valid_items, stats
-            
-        except json.JSONDecodeError as e:
-            logging.error(f"Detector JSON parse error: {e}")
-            logging.debug(f"Response was: {response}")
-            return [], stats
+    chunk_size = config.get('detector', {}).get('chunk_size', 600)
+    all_replacements = []
     
-    except Exception as e:
-        logging.error(f"Detector error: {e}")
-        return [], stats
+    # Split text into chunks (simple character-based for now)
+    chunks = []
+    for i in range(0, len(text), chunk_size):
+        chunk = text[i:i + chunk_size]
+        if chunk.strip():  # Only process non-empty chunks
+            chunks.append(chunk)
+    
+    logging.info(f"Detector: Processing {len(chunks)} chunks of ~{chunk_size} chars")
+    
+    # Process each chunk
+    for chunk_idx, chunk in enumerate(chunks):
+        try:
+            detector_prompt = PROMPTS.get('detector', 'Find and fix text problems.')
+            response = llm_client.complete(detector_prompt, chunk, temperature=0.3, repetition_penalty=1.5, max_tokens=1024)
+            stats['model_calls'] += 1
+            stats['chunks_processed'] += 1
+            
+            # Parse line-based format instead of JSON
+            replacements = _parse_detector_response(response, chunk)
+            
+            for item in replacements:
+                # Validate that find_text exists in original full text (not just chunk)
+                if item.find in text:
+                    all_replacements.append(item)
+                    stats['suggestions_valid'] += 1
+                else:
+                    stats['suggestions_rejected'] += 1
+                    logging.debug(f"Rejected (not in full text): {item.find[:50]}")
+            
+        except Exception as e:
+            logging.error(f"Detector error on chunk {chunk_idx}: {e}")
+            continue
+    
+    # Deduplicate across chunks
+    seen = set()
+    unique_replacements = []
+    for item in all_replacements:
+        key = (item.find, item.replace)
+        if key not in seen:
+            seen.add(key)
+            unique_replacements.append(item)
+    
+    if len(unique_replacements) < len(all_replacements):
+        logging.info(f"Deduped {len(all_replacements) - len(unique_replacements)} repeated suggestions across chunks")
+    
+    logging.info(f"Detector: {len(unique_replacements)} valid suggestions from {stats['chunks_processed']} chunks")
+    return unique_replacements, stats
 
 
 # ============================================================================
 # PHASE 7: APPLY + VALIDATORS
 # ============================================================================
+
+def _parse_detector_response(response: str, original_chunk: str) -> List[ReplacementItem]:
+    """
+    Parse line-based detector response format.
+    
+    Expected format:
+    FIND: exact text
+    REPLACE: replacement text
+    REASON: reason
+    ---
+    
+    Args:
+        response: LLM response text
+        original_chunk: Original chunk for validation
+    
+    Returns:
+        List of ReplacementItem objects
+    """
+    replacements = []
+    current = {}
+    
+    lines = response.split('\n')
+    for line in lines:
+        line = line.strip()
+        
+        if not line or line == '---':
+            # End of one replacement
+            if 'find' in current and 'replace' in current:
+                replacements.append(ReplacementItem(
+                    find=current['find'],
+                    replace=current['replace'],
+                    reason=current.get('reason', 'unknown')
+                ))
+            current = {}
+            continue
+        
+        if line == 'END_REPLACEMENTS':
+            break
+        
+        # Parse field lines
+        if line.startswith('FIND:'):
+            current['find'] = line[5:].strip()
+        elif line.startswith('REPLACE:'):
+            current['replace'] = line[8:].strip()
+        elif line.startswith('REASON:'):
+            current['reason'] = line[7:].strip()
+    
+    # Catch final replacement if no trailing ---
+    if 'find' in current and 'replace' in current:
+        replacements.append(ReplacementItem(
+            find=current['find'],
+            replace=current['replace'],
+            reason=current.get('reason', 'unknown')
+        ))
+    
+    return replacements
+
 
 def apply_plan(text: str, plan: List[ReplacementItem], config: Dict[str, Any]) -> Tuple[str, Dict[str, int]]:
     """
@@ -795,9 +865,80 @@ def validate_length_delta(original: str, edited: str, max_ratio: float) -> Tuple
 # PHASE 8: FIXER (Stub)
 # ============================================================================
 
+def grammar_fix(text: str, llm_client: LLMClient, config: Dict[str, Any], 
+                detected_problems: List[ReplacementItem] = None) -> Tuple[str, Dict[str, int]]:
+    """
+    Grammar correction pass with detected problems context.
+    
+    This is the second LLM pass that receives:
+    1. The text (with prepass already applied)
+    2. List of problematic words/phrases detected in first pass
+    
+    The LLM is instructed to fix these problems while preserving structure.
+    
+    Args:
+        text: Input text
+        llm_client: LLM client instance
+        config: Configuration dict
+        detected_problems: List of problems from detect phase
+    
+    Returns:
+        Tuple of (corrected_text, stats_dict)
+    """
+    stats = {
+        'problems_provided': len(detected_problems) if detected_problems else 0,
+        'grammar_applied': 0
+    }
+    
+    # Build context about detected problems
+    if detected_problems:
+        problem_list = "\n".join([
+            f"- \"{item.find}\" → \"{item.replace}\" (reason: {item.reason})"
+            for item in detected_problems[:20]  # Limit to avoid token overflow
+        ])
+        
+        enhanced_prompt = f"""{PROMPTS.get('grammar', 'Fix grammar and TTS issues.')}
+
+DETECTED TTS PROBLEMS TO FIX:
+{problem_list}
+
+Apply these corrections to make the text more TTS-friendly while fixing any grammar issues."""
+    else:
+        enhanced_prompt = PROMPTS.get('grammar', 'Fix grammar and TTS issues.')
+    
+    try:
+        response = llm_client.complete(enhanced_prompt, text, temperature=0.1, max_tokens=8192)
+        
+        # Extract text from <RESULT> tags if present
+        result_start = response.find('<RESULT>')
+        result_end = response.find('</RESULT>')
+        
+        if result_start >= 0 and result_end > result_start:
+            extracted = response[result_start + 8:result_end].strip()
+            logging.info(f"Grammar: Extracted {len(extracted)} chars from <RESULT> tags")
+            corrected = extracted
+        else:
+            # Fallback: use full response if no tags found
+            logging.warning("Grammar: No <RESULT> tags found, using full response")
+            corrected = response.strip()
+        
+        # Basic validation - check if response is reasonable
+        if len(corrected) > 0 and len(corrected) < len(text) * 1.5:
+            stats['grammar_applied'] = 1
+            logging.info(f"Grammar: Applied corrections with {stats['problems_provided']} problem hints")
+            return corrected, stats
+        else:
+            logging.warning(f"Grammar: Response length suspicious ({len(corrected)} vs {len(text)}), keeping original")
+            return text, stats
+            
+    except Exception as e:
+        logging.error(f"Grammar error: {e}")
+        return text, stats
+
+
 def fix_polish(text: str, llm_client: LLMClient, config: Dict[str, Any]) -> Tuple[str, Dict[str, int]]:
     """
-    Phase 8: Light polish with larger model.
+    Phase 8: Light polish with larger model (final cleanup pass).
     
     Args:
         text: Input text
@@ -807,10 +948,24 @@ def fix_polish(text: str, llm_client: LLMClient, config: Dict[str, Any]) -> Tupl
     Returns:
         Tuple of (processed_text, stats_dict)
     """
-    # Stub for now
-    stats = {'polishing_applied': 0}
-    logging.info(f"Fixer: {stats}")
-    return text, stats
+    stats = {'polishing_calls': 0}
+    
+    try:
+        fixer_prompt = PROMPTS.get('fixer', 'Perform light polish on the text.')
+        response = llm_client.complete(fixer_prompt, text, temperature=0.0, max_tokens=8192)
+        
+        # Basic validation
+        if len(response) > 0 and len(response) < len(text) * 1.2:
+            stats['polishing_calls'] = 1
+            logging.info("Fixer: Applied light polish")
+            return response, stats
+        else:
+            logging.warning("Fixer: Response suspicious, keeping original")
+            return text, stats
+            
+    except Exception as e:
+        logging.error(f"Fixer error: {e}")
+        return text, stats
 
 
 # ============================================================================
@@ -837,7 +992,7 @@ def run_pipeline(text: str, steps: List[str], config: Dict[str, Any],
     llm_client = None
     
     # Initialize LLM client if needed
-    if any(step in ['detect', 'fix'] for step in steps):
+    if any(step in ['detect', 'grammar', 'fix'] for step in steps):
         if HAS_REQUESTS:
             llm_client = LLMClient(llm_endpoint, llm_model)
         else:
@@ -885,6 +1040,16 @@ def run_pipeline(text: str, steps: List[str], config: Dict[str, Any],
             text, step_stats = apply_plan(text, plan, config)
             stats['apply'] = step_stats
         
+        elif step == 'grammar':
+            if not llm_client:
+                logging.error("Grammar requires LLM client")
+                continue
+            
+            # Pass detected problems to grammar phase
+            plan = stats.get('_detect_plan', [])
+            text, step_stats = grammar_fix(text, llm_client, config, plan)
+            stats['grammar'] = step_stats
+        
         elif step == 'fix':
             if not llm_client:
                 logging.error("Fixer requires LLM client")
@@ -919,10 +1084,10 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Full pipeline
-  python md_processor.py --input input.md --output output.md --steps mask,detect,apply
+  # Full pipeline with grammar correction (recommended)
+  python md_processor.py --input input.md --output output.md --steps mask,detect,grammar
   
-  # Prepass only
+  # Prepass only (no LLM)
   python md_processor.py --input input.md --output clean.md --steps mask,prepass-basic,prepass-advanced
   
   # With custom endpoint
@@ -935,7 +1100,7 @@ Examples:
     
     parser.add_argument('--input', type=Path, help='Input Markdown file')
     parser.add_argument('--output', type=Path, help='Output file path')
-    parser.add_argument('--steps', default='mask,detect,apply', help='Comma-separated pipeline steps')
+    parser.add_argument('--steps', default='mask,detect,grammar', help='Comma-separated pipeline steps (mask,prepass-basic,prepass-advanced,scrubber,detect,grammar,apply,fix)')
     parser.add_argument('--endpoint', help='LLM API endpoint (overrides servers.json)')
     parser.add_argument('--model', help='LLM model name (overrides servers.json)')
     parser.add_argument('--config', type=Path, help='JSON config file (overrides defaults)')
