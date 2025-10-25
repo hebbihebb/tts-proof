@@ -52,8 +52,8 @@ python gui.py
 ### Command-Line
 
 ```bash
-# Detect and fix TTS issues
-python md_processor.py --input input.md --output output.md --steps mask,detect,apply
+# Full pipeline: Detect TTS problems and apply grammar correction
+python md_processor.py --input input.md --output output.md --steps mask,detect,grammar
 ```
 
 ### Basic cleanup only
