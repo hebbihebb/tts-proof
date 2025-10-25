@@ -136,3 +136,9 @@ performance_comparison_*.csv
 auto_test_results/
 *_auto_test.json
 test_run_*.log
+# Phase 11 PR2 test artifacts
+pr2test/
+*_report.json
+
+# Backend cache artifacts
+backend/__pycache__/

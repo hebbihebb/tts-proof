@@ -1,0 +1,86 @@
+Sample output from --report-pretty flag
+=========================================
+
+This demonstrates the human-readable report format for a simple pipeline run.
+
+Command:
+--------
+python -m mdp test_input.md --steps mask,prepass-basic,prepass-advanced --report report.json --report-pretty
+
+
+Output:
+-------
+
+====================================================================================================
+                                            RUN SUMMARY                                             
+====================================================================================================
+  Input file     : testing/test_data/test_input.md
+  Output file    : output.md
+  Pipeline steps : mask -> prepass-basic -> prepass-advanced
+
+====================================================================================================
+                                          PHASE STATISTICS                                          
+====================================================================================================
+  Mask             : 2 regions masked
+  Prepass Basic    : 3 normalizations
+  Prepass Advanced : 11 normalizations
+
+====================================================================================================
+                                             ARTIFACTS                                              
+====================================================================================================
+  Output file : output.md
+
+
+Example with Full Pipeline (Detector + Apply + Fixer):
+-------------------------------------------------------
+
+====================================================================================================
+                                            RUN SUMMARY                                             
+====================================================================================================
+  Input file     : long/path/to/input.md
+  Output file    : long/path/to/output.md
+  Pipeline steps : mask -> detect -> apply -> fix
+
+====================================================================================================
+                                          PHASE STATISTICS                                          
+====================================================================================================
+  Mask     : 50 regions masked
+  Detector : 20 suggestions (model: qwen2.5-1.5b)
+  Apply    : 18 replacements in 12 nodes
+  Fixer    : 100/105 spans (model: qwen2.5-1.5b-instruct)
+
+====================================================================================================
+                                              REJECTIONS                                             
+====================================================================================================
+
+Detector Rejections:
+  schema_invalid  :    5
+
+Fixer Rejections:
+  timeout         :    5
+
+====================================================================================================
+                                            FILE GROWTH                                             
+====================================================================================================
+  Apply phase : +1.50% (+30 chars)
+  Fixer phase : +2.00%
+
+====================================================================================================
+                                           QUALITY FLAGS                                            
+====================================================================================================
+  Detector : Non-deterministic
+  Fixer    : Non-deterministic
+
+====================================================================================================
+                                             ARTIFACTS                                              
+====================================================================================================
+  Output file : long/path/to/output.md
+
+
+Notes:
+------
+- Sections are only shown when relevant data exists
+- File paths are truncated to ~60 chars for readability
+- Growth ratios show file size changes with percentages
+- Rejection counts help diagnose model output issues
+- Determinism flags indicate if seed was set for reproducibility

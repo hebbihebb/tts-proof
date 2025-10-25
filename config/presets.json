@@ -1,0 +1,45 @@
+{
+  "default": {
+    "grammar": {
+      "provider": "openai-compatible",
+      "base_url": "http://127.0.0.1:1234/v1/chat/completions",
+      "model": "Qwen2.5-3B-Instruct",
+      "temperature": 0.2
+    },
+    "detector": {
+      "provider": "local",
+      "model": "qwen/qwen3-4b-2507",
+      "notes": "baseline hazard detector",
+      "api_base": "http://127.0.0.1:1234/v1"
+    },
+    "fixer": {
+      "provider": "openai-compatible",
+      "base_url": "http://127.0.0.1:1234/v1/chat/completions",
+      "model": "Qwen3-8B-Instruct",
+      "temperature": 0.1
+    }
+  },
+  "lightweight": {
+    "grammar": {
+      "model": "Qwen2.5-1.5B-Instruct",
+      "temperature": 0.0
+    },
+    "detector": {
+      "model": "qwen/qwen3-1.8b-mini"
+    },
+    "fixer": {
+      "model": "Qwen2.5-3B-Instruct",
+      "temperature": 0.0
+    }
+  },
+  "quality": {
+    "grammar": {
+      "model": "Qwen3-8B-Instruct",
+      "temperature": 0.15
+    },
+    "fixer": {
+      "model": "Qwen3-8B-Instruct",
+      "temperature": 0.05
+    }
+  }
+}
